@@ -1,0 +1,54 @@
+######################### COMPILE SETTINGS ################################
+MESSAGE(STATUS "===============================================================")
+MESSAGE(STATUS "============ Configuring CompileSettings  =====================")
+
+IF(NOT CMAKE_BUILD_TYPE)
+  SET(CMAKE_BUILD_TYPE Release CACHE
+    STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel."
+    FORCE)
+ SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
+ENDIF(NOT CMAKE_BUILD_TYPE)
+
+
+IF(UNIX)
+  SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+  SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+  
+  SET (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -mtune=native -march=native")
+  SET (CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -march=native")
+
+  OPTION (USE_PEDANTIC_FLAGS "Use Pedantic Flags" ON)
+  IF(USE_PEDANTIC_FLAGS)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic")
+  ENDIF()
+  
+  OPTION (USE_DEBUG_SYMBOLS "Use Debug Symbols" OFF)
+  IF(USE_DEBUG_SYMBOLS)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -g")
+  ENDIF()
+ENDIF()
+
+## Enable C++ standard (falls to next avialble)
+SET (CMAKE_CXX_STANDARD 14)
+SET (CMAKE_CXX_STANDARD_REQUIRED 11)
+
+IF(CMAKE_BUILD_TYPE MATCHES Debug)
+  SET(CMAKE_BUILD_TYPE_FLAGS ${CMAKE_CXX_FLAGS_DEBUG})
+ELSEIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+  SET(CMAKE_BUILD_TYPE_FLAGS ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+ELSEIF(CMAKE_BUILD_TYPE MATCHES Release)
+  SET(CMAKE_BUILD_TYPE_FLAGS ${CMAKE_CXX_FLAGS_RELEASE})
+ENDIF()
+
+OPTION (USE_OpenMP "Use OpenMP" ON)
+IF(USE_OpenMP)
+  FIND_PACKAGE(OpenMP)
+  IF(OPENMP_FOUND)
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  ELSE()
+    SET(USE_OpenMP OFF)
+  ENDIF()
+ENDIF()
