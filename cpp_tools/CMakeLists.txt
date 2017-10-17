@@ -2,13 +2,14 @@
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
 set(_APPS
-demoViewPoint
+  visualizeRandomViewpoints
+  visualizePLYwithViewpoint
 )
 
 foreach(APP ${_APPS})
 set (APP_NAME ${APP})
 
 add_executable(${APP_NAME} ${APP}.cpp)
-target_link_libraries(${APP_NAME} CuteGL::Surface)
+target_link_libraries(${APP_NAME} CuteGL::Surface ${Boost_LIBRARIES})
 set_property(TARGET ${APP_NAME} PROPERTY FOLDER "cpp_tools")
 endforeach()
