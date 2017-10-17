@@ -3,6 +3,7 @@ SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
 set(_APPS
   visualizeRandomViewpoints
+  visualizeMutiObjectRandomViewpoints
   visualizePLYwithViewpoint
 )
 

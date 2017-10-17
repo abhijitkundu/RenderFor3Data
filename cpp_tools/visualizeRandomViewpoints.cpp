@@ -108,18 +108,22 @@ int main(int argc, char **argv) {
   ViewpointBrowser viewer(renderer.get(), vp_file);
   viewer.setBackgroundColor(0, 0, 0);
 
-  const int W = 960;
-  const int H = 540;
-  viewer.resize(W, H);
+  //  const int W = 960;
+  //  const int H = 540;
+  //  const float focal_length = 1050.0f;
 
-  viewer.setSceneRadius(10.0f);
+  const int W = 1600;
+  const int H = 800;
+  const float focal_length = 1750.0f;
+
+  viewer.resize(W, H);
+  viewer.setSceneRadius(3.0f);
 
   viewer.camera().extrinsics() = getExtrinsicsFromViewPoint(0.0f, 0.0f, 0.0f, 2.0f);
-
   viewer.showAndWaitTillExposed();
 
   // Set camera intrinsics
-  viewer.camera().intrinsics() = getGLPerspectiveProjection(1050.0f, 1050.0f, 0.0f, 480.0f, 270.0f, 960, 540, 0.1f, 100.0f);
+  viewer.camera().intrinsics() = CuteGL::getGLPerspectiveProjection(focal_length, focal_length, 0.0f, W/2.0f, H/2.0f, W, H, 0.1f, 100.0f);
 
 
   renderer->modelDrawers().addItem(Affine3f::Identity(), loadMeshFromPLY(CUTEGL_ASSETS_FOLDER "/car.ply"));
