@@ -47,6 +47,12 @@ FIND_PACKAGE(CuteGL REQUIRED)
 # Find Eigen dependencies
 FIND_PACKAGE(Eigen REQUIRED)
 
+message(STATUS "=============================================================")
+message(STATUS "============ Generating RenderFor3DataConfig.h ==============")
+
+set(RENDERFOR3DATA_ROOT_DIR \"${CMAKE_SOURCE_DIR}\")
+configure_file( ${CMAKE_SOURCE_DIR}/cmake/Config.h.cmake ${CMAKE_SOURCE_DIR}/cpp_tools/RenderFor3DataConfig.h )
+
 # MESSAGE(STATUS "===============================================================")
 # MESSAGE(STATUS "==============  Adding RenderFor3Data Library  ================")
 # ADD_SUBDIRECTORY(RenderFor3Data)
