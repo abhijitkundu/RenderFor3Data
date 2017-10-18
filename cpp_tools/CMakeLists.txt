@@ -12,6 +12,6 @@ foreach(APP ${_APPS})
 set (APP_NAME ${APP})
 
 add_executable(${APP_NAME} ${APP}.cpp)
-target_link_libraries(${APP_NAME} CuteGL::Surface ${Boost_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(${APP_NAME} RenderFor3Data)
 set_property(TARGET ${APP_NAME} PROPERTY FOLDER "cpp_tools")
 endforeach()

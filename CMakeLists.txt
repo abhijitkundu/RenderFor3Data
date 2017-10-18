@@ -47,15 +47,18 @@ FIND_PACKAGE(CuteGL REQUIRED)
 # Find Eigen dependencies
 FIND_PACKAGE(Eigen REQUIRED)
 
+# Find JSON Dependencies
+find_package(nlohmann_json REQUIRED)
+
 message(STATUS "=============================================================")
 message(STATUS "============ Generating RenderFor3DataConfig.h ==============")
 
 set(RENDERFOR3DATA_ROOT_DIR \"${CMAKE_SOURCE_DIR}\")
-configure_file( ${CMAKE_SOURCE_DIR}/cmake/Config.h.cmake ${CMAKE_SOURCE_DIR}/cpp_tools/RenderFor3DataConfig.h )
+configure_file( ${CMAKE_SOURCE_DIR}/cmake/Config.h.cmake ${CMAKE_SOURCE_DIR}/RenderFor3Data/Config.h )
 
-# MESSAGE(STATUS "===============================================================")
-# MESSAGE(STATUS "==============  Adding RenderFor3Data Library  ================")
-# ADD_SUBDIRECTORY(RenderFor3Data)
+MESSAGE(STATUS "===============================================================")
+MESSAGE(STATUS "==============  Adding RenderFor3Data Library  ================")
+ADD_SUBDIRECTORY(RenderFor3Data)
 
 MESSAGE(STATUS "===============================================================")
 MESSAGE(STATUS "=================   Adding CPP Tools   ========================")
@@ -76,4 +79,5 @@ MESSAGE(STATUS "Eigen Version:      ${EIGEN_VERSION}")
 MESSAGE(STATUS "HDF5 Version:       ${HDF5_VERSION}")
 MESSAGE(STATUS "Boost Version:      ${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION}")
 MESSAGE(STATUS "OpenCV Version:     ${OpenCV_VERSION}")
+message(STATUS "Json:               ${nlohmann_json_VERSION}")
 MESSAGE(STATUS "===============================================================")

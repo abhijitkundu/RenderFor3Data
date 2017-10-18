@@ -1,6 +1,6 @@
 # Custom Config Files
 ######################
-RenderFor3DataConfig.h
+RenderFor3Data/Config.h
 
 # Ignore H5 files
 *.h5

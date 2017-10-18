@@ -5,7 +5,7 @@
  * @author Abhijit Kundu
  */
 
-#include "RenderFor3DataConfig.h"
+#include "RenderFor3Data/Config.h"
 #include <CuteGL/Renderer/MultiObjectRenderer.h>
 #include <CuteGL/Surface/WindowRenderViewer.h>
 #include <CuteGL/Core/Config.h>
