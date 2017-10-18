@@ -2,15 +2,16 @@
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
 set(_APPS
-  visualizeRandomViewpoints
-  visualizeMutiObjectRandomViewpoints
   visualizePLYwithViewpoint
+  visualizeRandomViewpoints
+  visualizeMutiObjectRandomViewpoints  
+  generateMultiObjectRandomDataset
 )
 
 foreach(APP ${_APPS})
 set (APP_NAME ${APP})
 
 add_executable(${APP_NAME} ${APP}.cpp)
-target_link_libraries(${APP_NAME} CuteGL::Surface ${Boost_LIBRARIES})
+target_link_libraries(${APP_NAME} CuteGL::Surface ${Boost_LIBRARIES} ${OpenCV_LIBS})
 set_property(TARGET ${APP_NAME} PROPERTY FOLDER "cpp_tools")
 endforeach()
