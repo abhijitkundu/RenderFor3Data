@@ -13,6 +13,7 @@
 #include <CuteGL/Core/PoseUtils.h>
 #include <CuteGL/Core/MeshUtils.h>
 #include <CuteGL/Core/ColorUtils.h>
+#include <CuteGL/Geometry/ComputeAlignedBox.h>
 #include <CuteGL/Geometry/OrientedBoxHelper.h>
 
 #include <Eigen/EulerAngles>
@@ -113,6 +114,7 @@ class ViewpointBrowser : public WindowRenderViewer {
     assert(model_filepaths_.size() == model_indices_.size());
     assert(num_of_objects_per_image_ <= model_indices_.size());
     renderer_->modelDrawers().clear();
+    model_bbx_sizes_.clear();
 
     std::uniform_real_distribution<float> hue_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> sat_dist(0.95f, 1.0f);
@@ -127,6 +129,10 @@ class ViewpointBrowser : public WindowRenderViewer {
       }
 
       auto mesh = loadMeshFromPLY(model_filepaths_.at(model_indices_.at(model_index_)));
+      Eigen::AlignedBox3f bbx  = computeAlignedBox(mesh);
+      model_bbx_sizes_.push_back(bbx.sizes());
+
+
       const float golden_ratio_conjugate = 0.618033988749895f;
       const float hue = 360.0f * std::fmod(hue_dist(rnd_eng_) + golden_ratio_conjugate, 1.0f);
       const MeshData::ColorType color = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_));
@@ -146,6 +152,7 @@ class ViewpointBrowser : public WindowRenderViewer {
     MultiObjectRenderer::ModelDrawers::Poses& poses = renderer_->modelDrawers().poses();
     const Eigen::Matrix3f Kinv = K_.inverse();
     const std::size_t number_of_objects = renderer_->modelDrawers().poses().size();
+    assert(model_bbx_sizes_.size() == number_of_objects);
 
     for (size_t i = 0; i < number_of_objects; ++i) {
       ++vp_index_;
@@ -165,7 +172,7 @@ class ViewpointBrowser : public WindowRenderViewer {
 
         // check for all previous poses for collision
         for (size_t j = 0; j < i; ++j) {
-          if (checkOrientedBoxCollision(pose, Eigen::Vector3f::Ones(), poses[j], Eigen::Vector3f::Ones())) {
+          if (checkOrientedBoxCollision(pose, model_bbx_sizes_.at(i), poses.at(j), model_bbx_sizes_.at(j))) {
             collision_free = false;
             break;
           }
@@ -206,6 +213,7 @@ class ViewpointBrowser : public WindowRenderViewer {
   std::size_t model_index_;
 
 
+  std::vector<Eigen::Vector3f> model_bbx_sizes_;
   std::mt19937 rnd_eng_;
   Eigen::Matrix3f K_;
 };
@@ -231,7 +239,7 @@ int main(int argc, char **argv) {
 
   const int W = 1600;
   const int H = 800;
-  const float focal_length = 1750.0f;
+  const float focal_length = 1760.0f;
 
   viewer.resize(W, H);
   viewer.setSceneRadius(50.0f);
