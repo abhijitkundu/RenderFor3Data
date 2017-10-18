@@ -6,7 +6,10 @@ logs/
 *.log
 
 # Ignore some dataset_directories
-data/*
+data/GT3DModels
+data/ShapeNetCore_v1
+data/ShapeNetCore_v1_PLY
+data/view_distribution
 
 #standard build directories
 build/
