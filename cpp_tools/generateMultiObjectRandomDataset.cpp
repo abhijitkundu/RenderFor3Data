@@ -71,7 +71,7 @@ class MultiObjectDatasetGenerator {
         num_of_objects_per_image_(num_of_objects_per_image),
         vp_index_(0),
         model_index_(0),
-        rnd_eng_ { std::random_device { }() },
+        rnd_eng_ {42},
         K_(Eigen::Matrix3d::Identity()) {
 
     viewer_.setBackgroundColor(0, 0, 0);
@@ -123,10 +123,8 @@ class MultiObjectDatasetGenerator {
         break;
       }  // error
 
-      vp *= M_PI / 180.0f;
-      vp[0] = CuteGL::wrapToPi(vp[0]);
-      vp[1] = CuteGL::wrapToPi(vp[1]);
-      vp[2] = CuteGL::wrapToPi(vp[2]);
+      vp *= M_PI / 180.0;
+      vp = vp.unaryExpr(CuteGL::WrapToPi());
 
       viewpoints_.push_back(vp);
     }

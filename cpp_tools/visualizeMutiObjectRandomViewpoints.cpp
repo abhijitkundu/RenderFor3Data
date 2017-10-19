@@ -38,7 +38,7 @@ class ViewpointBrowser : public WindowRenderViewer {
         num_of_objects_per_image_(num_of_objects_per_image),
         vp_index_(0),
         model_index_(0),
-        rnd_eng_ { std::random_device { }() },
+        rnd_eng_ {42},
         K_(Eigen::Matrix3f::Identity()){
 
     keyboard_handler_.registerKey(NEXT_IMAGE, Qt::Key_Right, "Next image");
@@ -56,7 +56,7 @@ class ViewpointBrowser : public WindowRenderViewer {
     std::cout << "K=\n" << K_ << "\n";
 
     resize(img_width, img_height);
-    camera().intrinsics() = CuteGL::getGLPerspectiveProjection(fx, fy, 0.0f, cx, cy, img_width, img_height, near_z, far_z);
+    camera().intrinsics() = getGLPerspectiveProjection(fx, fy, 0.0f, cx, cy, img_width, img_height, near_z, far_z);
   }
 
 
@@ -75,6 +75,7 @@ class ViewpointBrowser : public WindowRenderViewer {
       }  // error
 
       vp *= M_PI / 180.0f;
+      vp = vp.unaryExpr(WrapToPi());
 
       viewpoints_.push_back(vp);
     }
@@ -114,6 +115,7 @@ class ViewpointBrowser : public WindowRenderViewer {
     assert(model_filepaths_.size() == model_indices_.size());
     assert(num_of_objects_per_image_ <= model_indices_.size());
     renderer_->modelDrawers().clear();
+    renderer_->bbxDrawers().clear();
     model_bbx_sizes_.clear();
 
     std::uniform_real_distribution<float> hue_dist(0.0f, 1.0f);
@@ -128,7 +130,9 @@ class ViewpointBrowser : public WindowRenderViewer {
         std::shuffle(model_indices_.begin(), model_indices_.end(), rnd_eng_);
       }
 
-      auto mesh = loadMeshFromPLY(model_filepaths_.at(model_indices_.at(model_index_)));
+      const std::string model_file = model_filepaths_.at(model_indices_.at(model_index_));
+
+      auto mesh = loadMeshFromPLY(model_file);
       Eigen::AlignedBox3f bbx  = computeAlignedBox(mesh);
       model_bbx_sizes_.push_back(bbx.sizes());
 
@@ -138,6 +142,7 @@ class ViewpointBrowser : public WindowRenderViewer {
       const MeshData::ColorType color = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_));
       CuteGL::colorizeMesh(mesh, color);
       renderer_->modelDrawers().addItem(Eigen::Affine3f::Identity(), mesh);
+      renderer_->bbxDrawers().addItem(Eigen::Affine3f::Identity(), bbx);
     }
 
     assert(model_filepaths_.size() == model_indices_.size());
@@ -145,14 +150,18 @@ class ViewpointBrowser : public WindowRenderViewer {
 
   void setModelPoses() {
     assert(viewpoints_.size() == vp_indices_.size());
-    std::uniform_real_distribution<float> x_dis(0.0f, width());
-    std::uniform_real_distribution<float> y_dis(0.0f, height());
-    std::uniform_real_distribution<float> z_dis(1.0f, 30.0f);
-
-    MultiObjectRenderer::ModelDrawers::Poses& poses = renderer_->modelDrawers().poses();
-    const Eigen::Matrix3f Kinv = K_.inverse();
+    assert(renderer_->modelDrawers().poses().size() == renderer_->bbxDrawers().poses().size());
     const std::size_t number_of_objects = renderer_->modelDrawers().poses().size();
-    assert(model_bbx_sizes_.size() == number_of_objects);
+
+
+    std::uniform_real_distribution<double> x_dis(0.0, width());
+    std::uniform_real_distribution<double> y_dis(0.0, height());
+    std::uniform_real_distribution<double> z_dis(1.0, 30.0);
+
+    MultiObjectRenderer::ModelDrawers::Poses& model_poses = renderer_->modelDrawers().poses();
+    MultiObjectRenderer::BoundingBoxDrawers::Poses& bbx_poses = renderer_->bbxDrawers().poses();
+
+    const Eigen::Matrix3f Kinv = K_.inverse();
 
     for (size_t i = 0; i < number_of_objects; ++i) {
       ++vp_index_;
@@ -164,22 +173,25 @@ class ViewpointBrowser : public WindowRenderViewer {
 
       // Loop and keep sampling new center_proj until we find a collision free pose
       while (true) {
-        Eigen::Isometry3f vp_pose = getExtrinsicsFromViewPoint(vp.x(), vp.y(), vp.z(), z_dis(rnd_eng_));
-        Eigen::Vector3f center_proj_ray = Kinv * Eigen::Vector3f(x_dis(rnd_eng_), y_dis(rnd_eng_), 1.0f);
+        float center_dist = z_dis(rnd_eng_);
+        Eigen::Isometry3f vp_pose = getExtrinsicsFromViewPoint(vp.x(), vp.y(), vp.z(), center_dist);
+        Eigen::Vector2f center_proj(x_dis(rnd_eng_), y_dis(rnd_eng_));
+        Eigen::Vector3f center_proj_ray = Kinv * center_proj.homogeneous();
         Eigen::Isometry3f pose = Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f::UnitZ(), center_proj_ray) * vp_pose;
 
         bool collision_free = true;
 
         // check for all previous poses for collision
         for (size_t j = 0; j < i; ++j) {
-          if (checkOrientedBoxCollision(pose, model_bbx_sizes_.at(i), poses.at(j), model_bbx_sizes_.at(j))) {
+          if (checkOrientedBoxCollision(pose, model_bbx_sizes_.at(i), model_poses.at(j), model_bbx_sizes_.at(j))) {
             collision_free = false;
             break;
           }
         }
 
         if (collision_free) {
-          poses[i] = pose;
+          model_poses[i] = pose;
+          bbx_poses[i] = pose;
           break;
         }
       }
