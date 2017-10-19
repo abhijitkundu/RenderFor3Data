@@ -65,6 +65,8 @@ fs::path relative_path(fs::path to, fs::path from) {
 
 class MultiObjectDatasetGenerator {
  public:
+  using MeshType = CuteGL::Mesh<float, float, unsigned char, int>;
+
   MultiObjectDatasetGenerator(const std::size_t num_of_objects_per_image)
       : renderer_(new CuteGL::MultiObjectRenderer()),
         viewer_(renderer_.get()),
@@ -164,6 +166,7 @@ class MultiObjectDatasetGenerator {
     assert(num_of_objects_per_image_ <= model_indices_.size());
     renderer_->modelDrawers().clear();
     cb_obj_infos_.clear();
+    cb_meshes_.clear();
 
     std::uniform_real_distribution<float> hue_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> sat_dist(0.95f, 1.0f);
@@ -191,7 +194,7 @@ class MultiObjectDatasetGenerator {
       const float hue = 360.0f * std::fmod(hue_dist(rnd_eng_) + golden_ratio_conjugate, 1.0f);
       const CuteGL::MeshData::ColorType color = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_));
 
-      using MeshType = CuteGL::Mesh<float, float, unsigned char, int>;
+
       MeshType mesh;
       {
         mesh.positions.resize(legacy_mesh.vertices.size(), Eigen::NoChange);
@@ -214,9 +217,12 @@ class MultiObjectDatasetGenerator {
       renderer_->modelDrawers().addItem(Eigen::Affine3f::Identity(), mesh);
 
       cb_obj_infos_.push_back(obj_info);
+      cb_meshes_.push_back(mesh);
     }
 
-    assert(model_filepaths_.size() == model_indices_.size());
+    assert(cb_meshes_.size() == num_of_objects_per_image_);
+    assert(cb_obj_infos_.size() == num_of_objects_per_image_);
+    assert(renderer_->modelDrawers().size() == num_of_objects_per_image_);
   }
 
   void generateModelPoses() {
@@ -273,6 +279,7 @@ class MultiObjectDatasetGenerator {
   void render_and_check() {
     const std::size_t number_of_objects = renderer_->modelDrawers().poses().size();
     assert(cb_obj_infos_.size() == number_of_objects);
+    assert(cb_meshes_.size() == number_of_objects);
 
     const int H = viewer_.height();
     const int W = viewer_.width();
@@ -316,9 +323,23 @@ class MultiObjectDatasetGenerator {
       Eigen::Vector3d center_proj_ray = K_inv * obj_info.center_proj.value().homogeneous();
       Eigen::Isometry3d pose = Eigen::Quaterniond::FromTwoVectors(Eigen::Vector3d::UnitZ(), center_proj_ray) * vp_pose;
 
-      Eigen::Matrix<double, 2, 8> img_corners = (img_info.image_intrinsic.value() * CuteGL::computeOrientedBoxCorners(pose, obj_info.dimension.value())).colwise().hnormalized();
-      obj_info.bbx_amodal = Eigen::Vector4d(img_corners.row(0).minCoeff(), img_corners.row(1).minCoeff(),
-                                            img_corners.row(0).maxCoeff(), img_corners.row(1).maxCoeff());
+      // Compute bbx_amodal by projecting the vertices
+      Eigen::Matrix2Xd img_projs = (img_info.image_intrinsic.value() * pose * cb_meshes_.at(i).positions.transpose().cast<double>()).colwise().hnormalized();
+      Eigen::Vector4d bbx_amodal(img_projs.row(0).minCoeff(), img_projs.row(1).minCoeff(),
+                                 img_projs.row(0).maxCoeff(), img_projs.row(1).maxCoeff());
+
+      Eigen::Vector4d bbx_truncated(std::min(std::max(0.0, bbx_amodal[0]), double(W)),
+                                    std::min(std::max(0.0, bbx_amodal[1]), double(H)),
+                                    std::min(std::max(0.0, bbx_amodal[2]), double(W)),
+                                    std::min(std::max(0.0, bbx_amodal[3]), double(H)));
+
+      obj_info.bbx_amodal = bbx_amodal;
+
+      double bbx_amodal_area = (bbx_amodal[2] - bbx_amodal[0]) * (bbx_amodal[3] - bbx_amodal[1]);
+      double bbx_truncated_area = (bbx_truncated[2] - bbx_truncated[0]) * (bbx_truncated[3] - bbx_truncated[1]);
+      assert(bbx_truncated_area <= bbx_amodal_area);
+
+      obj_info.truncation = 1.0 - (bbx_truncated_area / bbx_amodal_area);
     }
 
     img_info.object_infos = cb_obj_infos_;
@@ -346,6 +367,7 @@ class MultiObjectDatasetGenerator {
   std::mt19937 rnd_eng_;
   Eigen::Matrix3d K_;
 
+  std::vector<MeshType> cb_meshes_;
   ImageInfo::ImageObjectInfos cb_obj_infos_;
   ImageDataset dataset_;
 
