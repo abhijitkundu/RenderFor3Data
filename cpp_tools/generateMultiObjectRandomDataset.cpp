@@ -100,12 +100,12 @@ class MultiObjectDatasetGenerator {
     renderer_->phongShader().setLightPosition(0.0f, -50.0f, 10.0f);
     renderer_->phongShader().program.release();
 
-    dataset_.name = "RandomFlyingCars";
+    dataset_.name = "FlyingCars";
     dataset_.rootdir = fs::path(RENDERFOR3DATA_ROOT_DIR) / fs::path("data");
     assert(fs::exists(dataset_.rootdir));
 
-    image_file_fmt_ = boost::format((dataset_.rootdir / "RandomFlyingCars" / "color_gl"/ "%08i_color.png").string());
-    segm_file_fmt_ = boost::format((dataset_.rootdir / "RandomFlyingCars" / "segm_gl"/ "%08i_segm.png").string());
+    image_file_fmt_ = boost::format((dataset_.rootdir / "FlyingCars" / "color_gl"/ "%08i_color.png").string());
+    segm_file_fmt_ = boost::format((dataset_.rootdir / "FlyingCars" / "segm_gl"/ "%08i_segm.png").string());
   }
 
   CuteGL::OffScreenRenderViewer& viewer() {return viewer_;}
