@@ -277,10 +277,6 @@ class MultiObjectDatasetGenerator {
   }
 
   void render_and_check() {
-    const std::size_t number_of_objects = renderer_->modelDrawers().poses().size();
-    assert(cb_obj_infos_.size() == number_of_objects);
-    assert(cb_meshes_.size() == number_of_objects);
-
     const int H = viewer_.height();
     const int W = viewer_.width();
 
@@ -290,8 +286,13 @@ class MultiObjectDatasetGenerator {
 
     const Eigen::Matrix3d K_inv = K_.inverse();
 
-    // Render and update bbx_visible
+    assert(renderer_->modelDrawers().size() == num_of_objects_per_image_);
+    assert(cb_obj_infos_.size() == num_of_objects_per_image_);
+    assert(cb_meshes_.size() == num_of_objects_per_image_);
+
+    // Render
     viewer_.render();
+
     {
       // Save color image
       QImage color_image = viewer_.readColorBuffer();
@@ -317,19 +318,21 @@ class MultiObjectDatasetGenerator {
     }
 
     // Compute 2d visible boxes
-    std::vector<Eigen::AlignedBox2i> visible_boxes(number_of_objects);
+    std::vector<Eigen::AlignedBox2i> visible_boxes(num_of_objects_per_image_);
+    std::vector<int> visible_pixel_counts(num_of_objects_per_image_, 0);
     for (Eigen::Index y = 0; y < H; ++y)
       for (Eigen::Index x = 0; x < W; ++x) {
         unsigned char label = label_image(y, x);
         if (label > 0) {
           visible_boxes.at(label - 1).extend(Eigen::Vector2i(x, y));
+          ++visible_pixel_counts.at(label - 1);
         }
       }
 
     // We will store the valid obj_info here
     ImageInfo::ImageObjectInfos valid_obj_infos;
 
-    for (size_t i = 0; i < number_of_objects; ++i) {
+    for (size_t i = 0; i < num_of_objects_per_image_; ++i) {
       const Eigen::AlignedBox2i& bbx_visible = visible_boxes[i];
 
       // Skip if object is totally not visible
@@ -342,26 +345,46 @@ class MultiObjectDatasetGenerator {
       Eigen::Vector3d center_proj_ray = K_inv * obj_info.center_proj.value().homogeneous();
       Eigen::Isometry3d pose = Eigen::Quaterniond::FromTwoVectors(Eigen::Vector3d::UnitZ(), center_proj_ray) * vp_pose;
 
-      // Compute bbx_amodal by projecting the vertices
-      Eigen::Matrix2Xd img_projs = (img_info.image_intrinsic.value() * pose * cb_meshes_.at(i).positions.transpose().cast<double>()).colwise().hnormalized();
-      Eigen::Vector4d bbx_amodal(img_projs.row(0).minCoeff(), img_projs.row(1).minCoeff(),
-                                 img_projs.row(0).maxCoeff(), img_projs.row(1).maxCoeff());
+      {
+        // Compute bbx_amodal by projecting the vertices
+        Eigen::Matrix2Xd img_projs = (img_info.image_intrinsic.value() * pose * cb_meshes_.at(i).positions.transpose().cast<double>()).colwise().hnormalized();
+        Eigen::Vector4d bbx_amodal(img_projs.row(0).minCoeff(), img_projs.row(1).minCoeff(),
+                                   img_projs.row(0).maxCoeff(), img_projs.row(1).maxCoeff());
 
-      Eigen::Vector4d bbx_truncated(std::min(std::max(0.0, bbx_amodal[0]), double(W)),
-                                    std::min(std::max(0.0, bbx_amodal[1]), double(H)),
-                                    std::min(std::max(0.0, bbx_amodal[2]), double(W)),
-                                    std::min(std::max(0.0, bbx_amodal[3]), double(H)));
+        Eigen::Vector4d bbx_truncated(std::min(std::max(0.0, bbx_amodal[0]), double(W)),
+                                      std::min(std::max(0.0, bbx_amodal[1]), double(H)),
+                                      std::min(std::max(0.0, bbx_amodal[2]), double(W)),
+                                      std::min(std::max(0.0, bbx_amodal[3]), double(H)));
 
-      obj_info.bbx_amodal = bbx_amodal;
+        obj_info.bbx_amodal = bbx_amodal;
 
-      double bbx_amodal_area = (bbx_amodal[2] - bbx_amodal[0]) * (bbx_amodal[3] - bbx_amodal[1]);
-      double bbx_truncated_area = (bbx_truncated[2] - bbx_truncated[0]) * (bbx_truncated[3] - bbx_truncated[1]);
-      assert(bbx_truncated_area <= bbx_amodal_area);
+        double bbx_amodal_area = (bbx_amodal[2] - bbx_amodal[0]) * (bbx_amodal[3] - bbx_amodal[1]);
+        double bbx_truncated_area = (bbx_truncated[2] - bbx_truncated[0]) * (bbx_truncated[3] - bbx_truncated[1]);
+        assert(bbx_truncated_area <= bbx_amodal_area);
 
-      obj_info.truncation = 1.0 - (bbx_truncated_area / bbx_amodal_area);
+        obj_info.truncation = 1.0 - (bbx_truncated_area / bbx_amodal_area);
+      }
+
 
       obj_info.bbx_visible = Eigen::Vector4d(bbx_visible.min().x(), bbx_visible.min().y(),
                                              bbx_visible.max().x() + 1, bbx_visible.max().y() + 1);
+
+      {
+        // We no longer need all the previous drawers (we need to start rendering on object at a time)
+        renderer_->modelDrawers().clear();
+        renderer_->modelDrawers().addItem(pose.cast<float>(), cb_meshes_.at(i));
+
+        viewer_.render();
+        {
+          Image32FC1 image_32FC1(H, W);
+          viewer_.readLabelBuffer(image_32FC1.data());
+          double amodal_pixel_count = (image_32FC1.array() > 0.1f).count();
+
+          obj_info.occlusion = 1.0 - (visible_pixel_counts.at(i) / amodal_pixel_count);
+          assert (obj_info.occlusion.value() <= 1.0);
+        }
+
+      }
 
       valid_obj_infos.push_back(obj_info);
     }
@@ -419,7 +442,7 @@ int main(int argc, char **argv) {
 
   std::cout << "Rendering Images ..." << std::endl;
 
-  const int num_of_images_to_generate = 100;
+  const int num_of_images_to_generate = 20000;
   boost::progress_display show_progress(num_of_images_to_generate);
   for (int i = 0; i<num_of_images_to_generate; ++i ) {
     dataset_generator.loadNextBatchOfModels();
@@ -429,7 +452,7 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "Saving dataset ..." << std::flush;
-  dataset_generator.save_dataset("temp.json");
+  dataset_generator.save_dataset("FlyingCars20k_seed42.json");
   std::cout << "Done." << std::endl;
 
   return EXIT_SUCCESS;
