@@ -22,8 +22,11 @@ struct ImageObjectInfo {
   // Object category
   boost::optional<std::string> category;
 
-  // Shape params
-  boost::optional<Eigen::VectorXd> shape_param;
+  // truncation ratio
+  boost::optional<double> truncation;
+
+  // occlusion ratio
+  boost::optional<double> occlusion;
 
   // 3D length, width, height
   boost::optional<Eigen::Vector3d> dimension;
@@ -43,6 +46,12 @@ struct ImageObjectInfo {
 
   // Additional pose params (for articulated objects)
   boost::optional<Eigen::VectorXd> pose_param;
+
+  // Shape params
+  boost::optional<Eigen::VectorXd> shape_param;
+
+  // path to shape file
+  boost::optional<std::string> shape_file;
 
  public:
    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -68,6 +77,7 @@ struct ImageDataset {
 };
 
 ImageDataset loadImageDatasetFromJson(const std::string& filepath);
+void saveImageDatasetToJson(const ImageDataset& image_dataset, const std::string& filepath);
 
 void to_json(nlohmann::json& j, const ImageDataset& dataset);
 void from_json(const nlohmann::json& j, ImageDataset& dataset);

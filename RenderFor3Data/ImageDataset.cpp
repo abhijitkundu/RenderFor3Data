@@ -89,8 +89,6 @@ void from_json(const nlohmann::json& json, MatrixBase<Derived> const &mat_) {
 
 }  // namespace Eigen
 
-namespace RaC {
-
 template<typename KeyType, typename T, std::size_t N>
 void from_json_if_present(const nlohmann::json& j, const KeyType& key, boost::optional<std::array<T, N>>& opt) {
   auto it = j.find(key);
@@ -116,6 +114,12 @@ void from_json_if_present(const nlohmann::json& j, const KeyType& key, boost::op
   opt = boost::none;
 }
 
+template<typename KeyType, typename T>
+void add_to_json_if_present(nlohmann::json& j, const KeyType& key, const boost::optional<T>& opt) {
+  if (opt)
+    j[key] = opt.value();
+}
+
 ImageDataset loadImageDatasetFromJson(const std::string& filepath) {
   nlohmann::json dataset_json;
   {
@@ -126,6 +130,17 @@ ImageDataset loadImageDatasetFromJson(const std::string& filepath) {
     file >> dataset_json;
   }
   return dataset_json;
+}
+
+void saveImageDatasetToJson(const ImageDataset& image_dataset, const std::string& filepath) {
+  {
+    std::ofstream file(filepath.c_str());
+    if (!file.is_open()) {
+      throw std::runtime_error("Cannot open File from " + filepath);
+    }
+    file << nlohmann::json(image_dataset).dump(2) << "\n";
+    file.close();
+  }
 }
 
 void to_json(nlohmann::json& j, const ImageDataset& dataset) {
@@ -162,24 +177,26 @@ void from_json(const nlohmann::json& j, ImageInfo& p) {
 }
 
 void to_json(nlohmann::json& j, const ImageObjectInfo& p) {
-  j = nlohmann::json {
-    { "id", p.id },
-    { "category", p.category },
-    { "shape_param", p.shape_param },
-    { "dimension", p.dimension },
-    { "bbx_visible", p.bbx_visible },
-    { "bbx_amodal", p.bbx_amodal },
-    { "viewpoint", p.viewpoint },
-    { "center_proj", p.center_proj },
-    { "center_dist", p.center_dist },
-    { "pose_param", p.pose_param }
-  };
+  add_to_json_if_present(j, "id", p.id);
+  add_to_json_if_present(j, "category", p.category);
+  add_to_json_if_present(j, "truncation", p.truncation);
+  add_to_json_if_present(j, "occlusion", p.occlusion);
+  add_to_json_if_present(j, "dimension", p.dimension);
+  add_to_json_if_present(j, "bbx_visible", p.bbx_visible);
+  add_to_json_if_present(j, "bbx_amodal", p.bbx_amodal);
+  add_to_json_if_present(j, "viewpoint", p.viewpoint);
+  add_to_json_if_present(j, "center_proj", p.center_proj);
+  add_to_json_if_present(j, "center_dist", p.center_dist);
+  add_to_json_if_present(j, "pose_param", p.pose_param);
+  add_to_json_if_present(j, "shape_param", p.shape_param);
+  add_to_json_if_present(j, "shape_file", p.shape_file);
 }
 
 void from_json(const nlohmann::json& j, ImageObjectInfo& p) {
   from_json_if_present(j, "id", p.id);
   from_json_if_present(j, "category", p.category);
-  from_json_if_present(j, "shape_param", p.shape_param);
+  from_json_if_present(j, "truncation", p.truncation);
+  from_json_if_present(j, "occlusion", p.occlusion);
   from_json_if_present(j, "dimension", p.dimension);
   from_json_if_present(j, "bbx_visible", p.bbx_visible);
   from_json_if_present(j, "bbx_amodal", p.bbx_amodal);
@@ -187,6 +204,8 @@ void from_json(const nlohmann::json& j, ImageObjectInfo& p) {
   from_json_if_present(j, "center_proj", p.center_proj);
   from_json_if_present(j, "center_dist", p.center_dist);
   from_json_if_present(j, "pose_param", p.pose_param);
+  from_json_if_present(j, "shape_param", p.shape_param);
+  from_json_if_present(j, "shape_file", p.shape_file);
 }
 
 
@@ -216,7 +235,5 @@ std::ostream& operator<<(std::ostream& os, const boost::optional<T>& opt) {
     os << opt.value();
   return os;
 }
-
-}  // end namespace RaC
 
 
