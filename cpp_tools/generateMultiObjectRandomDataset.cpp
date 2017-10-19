@@ -316,7 +316,26 @@ class MultiObjectDatasetGenerator {
       img_info.segm_file = relative_path(segm_file_path, dataset_.rootdir).string();
     }
 
+    // Compute 2d visible boxes
+    std::vector<Eigen::AlignedBox2i> visible_boxes(number_of_objects);
+    for (Eigen::Index y = 0; y < H; ++y)
+      for (Eigen::Index x = 0; x < W; ++x) {
+        unsigned char label = label_image(y, x);
+        if (label > 0) {
+          visible_boxes.at(label - 1).extend(Eigen::Vector2i(x, y));
+        }
+      }
+
+    // We will store the valid obj_info here
+    ImageInfo::ImageObjectInfos valid_obj_infos;
+
     for (size_t i = 0; i < number_of_objects; ++i) {
+      const Eigen::AlignedBox2i& bbx_visible = visible_boxes[i];
+
+      // Skip if object is totally not visible
+      if (bbx_visible.isEmpty())
+        continue;
+
       ImageObjectInfo& obj_info = cb_obj_infos_.at(i);
       const Eigen::Vector3d& vp = obj_info.viewpoint.value();
       Eigen::Isometry3d vp_pose = CuteGL::getExtrinsicsFromViewPoint(vp.x(), vp.y(), vp.z(), obj_info.center_dist.value());
@@ -340,9 +359,14 @@ class MultiObjectDatasetGenerator {
       assert(bbx_truncated_area <= bbx_amodal_area);
 
       obj_info.truncation = 1.0 - (bbx_truncated_area / bbx_amodal_area);
+
+      obj_info.bbx_visible = Eigen::Vector4d(bbx_visible.min().x(), bbx_visible.min().y(),
+                                             bbx_visible.max().x() + 1, bbx_visible.max().y() + 1);
+
+      valid_obj_infos.push_back(obj_info);
     }
 
-    img_info.object_infos = cb_obj_infos_;
+    img_info.object_infos = valid_obj_infos;
     dataset_.image_infos.push_back(img_info);
   }
 
