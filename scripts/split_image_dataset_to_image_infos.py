@@ -43,7 +43,9 @@ def main():
         for obj_info in image_info['object_infos']:
             shape_name = osp.splitext(osp.basename(obj_info['shape_file']))[0]
             # TODO use synset mapping of car --> 02958343 rather than hardcoding
-            obj_info['shape_file'] = osp.join('ShapeNetCore_v1', '02958343', shape_name, 'model.obj')
+            shape_file = osp.join(image_datset.rootdir(), 'ShapeNetCore_v1', '02958343', shape_name, 'model.obj')
+            assert osp.exists(shape_file), "Shape file {} do not exist".format(shape_file)
+            obj_info['shape_file'] = shape_file
             for obj_info_field in ['bbx_visible', 'bbx_amodal', 'viewpoint', 'center_proj', 'dimension']:
                 if obj_info_field in obj_info:
                     obj_info[obj_info_field] = NoIndent(obj_info[obj_info_field])
