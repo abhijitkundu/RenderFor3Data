@@ -108,10 +108,10 @@ class MultiObjectDatasetGenerator {
     fs::path segm_fp = dataset_.rootdir / dataset_name / "segm_gl"/ "%08i_segm.png";
 
     if (!fs::exists(image_fp.parent_path()))
-      fs::create_directory(image_fp.parent_path());
+      fs::create_directories(image_fp.parent_path());
 
     if (!fs::exists(segm_fp.parent_path()))
-      fs::create_directory(segm_fp.parent_path());
+      fs::create_directories(segm_fp.parent_path());
 
     image_file_fmt_ = boost::format(image_fp.string());
     segm_file_fmt_ = boost::format(segm_fp.string());
@@ -437,6 +437,8 @@ int main(int argc, char **argv) {
 
   const std::string dataset_name = "FlyingCars20k_seed42";
   const std::size_t num_of_objects_per_image = 32;
+  const int num_of_images_to_generate = 20000;
+
   MultiObjectDatasetGenerator dataset_generator(dataset_name, num_of_objects_per_image);
 
   std::cout << "Reading viewpoints ..." << std::flush;
@@ -452,7 +454,6 @@ int main(int argc, char **argv) {
 
   std::cout << "Rendering Images ..." << std::endl;
 
-  const int num_of_images_to_generate = 20000;
   boost::progress_display show_progress(num_of_images_to_generate);
   for (int i = 0; i<num_of_images_to_generate; ++i ) {
     dataset_generator.loadNextBatchOfModels();
