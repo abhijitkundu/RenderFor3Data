@@ -156,7 +156,7 @@ class ViewpointBrowser : public WindowRenderViewer {
 
     std::uniform_real_distribution<double> x_dis(0.0, width());
     std::uniform_real_distribution<double> y_dis(0.0, height());
-    std::uniform_real_distribution<double> z_dis(1.0, 30.0);
+    std::uniform_real_distribution<double> z_dis(1.0, 29.0);
 
     MultiObjectRenderer::ModelDrawers::Poses& model_poses = renderer_->modelDrawers().poses();
     MultiObjectRenderer::BoundingBoxDrawers::Poses& bbx_poses = renderer_->bbxDrawers().poses();
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
 
   const int W = 1600;
   const int H = 800;
-  const float focal_length = 1760.0f;
+  const float focal_length = 1750.0f;
 
   viewer.resize(W, H);
   viewer.setSceneRadius(50.0f);

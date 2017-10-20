@@ -67,7 +67,7 @@ class MultiObjectDatasetGenerator {
  public:
   using MeshType = CuteGL::Mesh<float, float, unsigned char, int>;
 
-  MultiObjectDatasetGenerator(const std::size_t num_of_objects_per_image)
+  MultiObjectDatasetGenerator(const std::string& dataset_name, const std::size_t num_of_objects_per_image)
       : renderer_(new CuteGL::MultiObjectRenderer()),
         viewer_(renderer_.get()),
         num_of_objects_per_image_(num_of_objects_per_image),
@@ -85,7 +85,7 @@ class MultiObjectDatasetGenerator {
 
     const int W = 1600;
     const int H = 800;
-    const double focal_length = 1760.0f;
+    const double focal_length = 1750.0f;
 
     K_ << focal_length, 0.0, W / 2.0, 0.0, focal_length, H / 2.0, 0.0f, 0.0f, 1.0;
 
@@ -100,12 +100,21 @@ class MultiObjectDatasetGenerator {
     renderer_->phongShader().setLightPosition(0.0f, -50.0f, 10.0f);
     renderer_->phongShader().program.release();
 
-    dataset_.name = "FlyingCars";
+    dataset_.name = dataset_name;
     dataset_.rootdir = fs::path(RENDERFOR3DATA_ROOT_DIR) / fs::path("data");
     assert(fs::exists(dataset_.rootdir));
+    
+    fs::path image_fp = dataset_.rootdir / dataset_name / "color_gl"/ "%08i_color.png";
+    fs::path segm_fp = dataset_.rootdir / dataset_name / "segm_gl"/ "%08i_segm.png";
 
-    image_file_fmt_ = boost::format((dataset_.rootdir / "FlyingCars" / "color_gl"/ "%08i_color.png").string());
-    segm_file_fmt_ = boost::format((dataset_.rootdir / "FlyingCars" / "segm_gl"/ "%08i_segm.png").string());
+    if (!fs::exists(image_fp.parent_path()))
+      fs::create_directory(image_fp.parent_path());
+
+    if (!fs::exists(segm_fp.parent_path()))
+      fs::create_directory(segm_fp.parent_path());
+
+    image_file_fmt_ = boost::format(image_fp.string());
+    segm_file_fmt_ = boost::format(segm_fp.string());
   }
 
   CuteGL::OffScreenRenderViewer& viewer() {return viewer_;}
@@ -229,7 +238,7 @@ class MultiObjectDatasetGenerator {
     assert(viewpoints_.size() == vp_indices_.size());
     std::uniform_real_distribution<double> x_dis(0.0, viewer_.width());
     std::uniform_real_distribution<double> y_dis(0.0, viewer_.height());
-    std::uniform_real_distribution<double> z_dis(1.0, 30.0);
+    std::uniform_real_distribution<double> z_dis(1.0, 29.0);
 
     auto& poses = renderer_->modelDrawers().poses();
     const Eigen::Matrix3d Kinv = K_.inverse();
@@ -426,8 +435,9 @@ int main(int argc, char **argv) {
 
   QGuiApplication app(argc, argv);
 
+  const std::string dataset_name = "FlyingCars20k_seed42";
   const std::size_t num_of_objects_per_image = 32;
-  MultiObjectDatasetGenerator dataset_generator(num_of_objects_per_image);
+  MultiObjectDatasetGenerator dataset_generator(dataset_name, num_of_objects_per_image);
 
   std::cout << "Reading viewpoints ..." << std::flush;
   std::size_t num_of_vps = dataset_generator.readViewpoints(
@@ -452,7 +462,7 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "Saving dataset ..." << std::flush;
-  dataset_generator.save_dataset("FlyingCars20k_seed42.json");
+  dataset_generator.save_dataset(dataset_name + ".json");
   std::cout << "Done." << std::endl;
 
   return EXIT_SUCCESS;
