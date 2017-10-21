@@ -1,87 +1,19 @@
+"""
+Blender script that takes an single image_info file and renders a scene
+still image from it.
+"""
 import argparse
 import json
-import math
 import os.path as osp
 import sys
 
-import numpy as np
-
 import bpy
-from mathutils import Euler, Matrix, Quaternion, Vector
-
-from RenderFor3Data.blender_helper import (
-    get_camera_intrinsic_from_blender,
-    get_camera_extrinsic_from_blender,
-    project_by_object_utils,
-    set_blender_camera_from_intrinsics,
-    set_blender_camera_extrinsic,
-    rotation_from_viewpoint,
-    rotation_from_two_vectors,
-)
-
-
-def print_object_attributes(obj):
-    """Helper to print object attributes"""
-    for attr in dir(obj):
-        if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
-
-# def init_scene(scene, camera_params, fbx_file):
-#     # load fbx model
-#     bpy.ops.import_scene.fbx(filepath=fbx_file, axis_forward='Y', axis_up='Z', global_scale=100)
-
-#     obname = bpy.data.objects[4].name
-#     assert '_avg' in obname
-
-#     ob = bpy.data.objects[obname]
-#     ob.data.use_auto_smooth = False  # autosmooth creates artifacts
-
-#     # assign the existing spherical harmonics material
-#     ob.active_material = bpy.data.materials['Material']
-
-#     # delete the default cube (which held the material)
-#     bpy.ops.object.select_all(action='DESELECT')
-#     bpy.data.objects['Cube'].select = True
-#     bpy.ops.object.delete(use_global=False)
-
-#     # set camera properties and initial position
-#     bpy.ops.object.select_all(action='DESELECT')
-#     cam_ob = bpy.data.objects['Camera']
-#     scn = bpy.context.scene
-#     scn.objects.active = cam_ob
-
-#     cam_ob.matrix_world = Matrix(((0., 0., 1, camera_params['camera_distance']),
-#                                   (0., -1, 0., -1.0),
-#                                   (-1., 0., 0., 0.),
-#                                   (0.0, 0.0, 0.0, 1.0)))
-#     cam_ob.data.angle = math.radians(40)
-#     cam_ob.data.lens = 60
-#     cam_ob.data.clip_start = 0.1
-#     cam_ob.data.sensor_width = 32
-
-#     # setup an empty object in the center which will be the parent of the Camera
-#     # this allows to easily rotate an object around the origin
-#     scn.cycles.film_transparent = True
-#     scn.render.layers["RenderLayer"].use_pass_vector = True
-#     scn.render.layers["RenderLayer"].use_pass_normal = True
-#     scene.render.layers['RenderLayer'].use_pass_emit = True
-#     scene.render.layers['RenderLayer'].use_pass_emit = True
-#     scene.render.layers['RenderLayer'].use_pass_material_index = True
-
-#     # set render size
-#     scn.render.resolution_x = camera_params['resy']
-#     scn.render.resolution_y = camera_params['resx']
-#     scn.render.resolution_percentage = 100
-#     scn.render.image_settings.file_format = 'PNG'
-
-#     # clear existing animation data
-#     ob.data.shape_keys.animation_data_clear()
-#     arm_ob = bpy.data.objects['Armature']
-#     arm_ob.animation_data_clear()
-
-#     return(ob, obname, arm_ob, cam_ob)
-
-# # transformation between pose and blendshapes
+from mathutils import Matrix, Vector
+from RenderFor3Data.blender_helper import (get_camera_intrinsic_from_blender,
+                                           rotation_from_two_vectors,
+                                           rotation_from_viewpoint,
+                                           set_blender_camera_extrinsic,
+                                           set_blender_camera_from_intrinsics)
 
 
 def main():
@@ -95,6 +27,7 @@ def main():
     parser = argparse.ArgumentParser(description='Render Single ImageInfo')
     parser.add_argument('image_info_file', type=str, nargs=1, help='path to image info file')
     parser.add_argument('-r', '--render_engine', default='CYCLES', choices=render_engine_choices, help='Render engine')
+    parser.add_argument('-g', '--gpu', type=int, help='GPU device number')
 
     args = parser.parse_args(argv)
     image_info_file = args.image_info_file[0]
@@ -110,12 +43,20 @@ def main():
     if args.render_engine == 'CYCLES':
         # Using Cycles Render Engine
         scene.render.engine = 'CYCLES'
-        scene.cycles.device = 'GPU'
         bpy.data.materials['Material'].use_nodes = True
         scene.cycles.shading_system = True
         # scene.use_nodes = True
         scene.render.image_settings.color_mode = 'RGBA'
         scene.cycles.film_transparent = True
+
+        scene.cycles.device = 'GPU'
+        cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
+        cycles_prefs.compute_device_type = "CUDA"
+        if args.gpu:
+            for device in cycles_prefs.devices:
+                device.use = False
+            assert args.gpu < len(cycles_prefs.devices), "Bad gpu provided"
+            cycles_prefs.devices[args.gpu].use = True
     elif args.render_engine == 'BLENDER_RENDER':
         # Using Blender Render Engine
         scene.render.engine = 'BLENDER_RENDER'
