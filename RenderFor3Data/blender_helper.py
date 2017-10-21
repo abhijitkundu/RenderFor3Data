@@ -110,7 +110,6 @@ def set_blender_camera_extrinsic(cam, R, t):
 
     cam.matrix_world = Matrix.Translation(t_bcam2world) * R_bcam2world.to_4x4()
 
-
 def project_by_object_utils(cam, point):
     """
     Get pixel coord using world_to_camera_view function in bpy.object_utils library
