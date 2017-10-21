@@ -6,6 +6,7 @@ import argparse
 import json
 import os.path as osp
 import sys
+import numpy as np
 
 import bpy
 from mathutils import Matrix, Vector
@@ -13,7 +14,37 @@ from RenderFor3Data.blender_helper import (get_camera_intrinsic_from_blender,
                                            rotation_from_two_vectors,
                                            rotation_from_viewpoint,
                                            set_blender_camera_extrinsic,
-                                           set_blender_camera_from_intrinsics)
+                                           set_blender_camera_from_intrinsics,
+                                           spherical_to_cartesian)
+
+
+def setup_blender_engine_lights(scene):
+    """Set lighting for BLENDER_RENDER engine"""
+    light_num_range = [2, 7]
+    light_dist_range = [8, 20]
+    light_azimuth_range = np.radians([0.0, 360.0])
+    light_elevation_range = np.radians([0.0, 90.0])
+    light_environment_energy_range = [0.1, 1]
+    light_energy_mean = 2
+    light_energy_std = 2
+
+    # set environment lighting
+    # bpy.context.space_data.context = 'WORLD'
+    scene.world.light_settings.use_environment_light = True
+    scene.world.light_settings.environment_energy = np.random.uniform(light_environment_energy_range[0], light_environment_energy_range[1])
+    scene.world.light_settings.environment_color = 'PLAIN'
+
+    # set point lights
+    for _ in range(np.random.randint(light_num_range[0], light_num_range[1])):
+        light_azimuth = np.random.uniform(light_azimuth_range[0], light_azimuth_range[1])
+        light_elevation = np.random.uniform(light_elevation_range[0], light_elevation_range[1])
+        light_dist = np.random.uniform(light_dist_range[0], light_dist_range[1])
+
+        # Note that For shapenet I need to use -ve directions for obj files
+        lamp_location = spherical_to_cartesian(light_azimuth, light_elevation, light_dist)
+        bpy.ops.object.lamp_add(type='POINT', view_align=False, location=-lamp_location)
+        bpy.data.objects['Point'].data.energy = np.random.normal(light_energy_mean, light_energy_std)
+        # print('lamp_location = ', lamp_location)
 
 
 def main():
@@ -40,6 +71,14 @@ def main():
     # Setup Scene
     scene = bpy.data.scenes['Scene']
 
+    # clear default lights
+    bpy.ops.object.select_by_type(type='LAMP')
+    bpy.ops.object.delete(use_global=False)
+
+    # clear default Cube object
+    bpy.data.objects['Cube'].select = True
+    bpy.ops.object.delete(use_global=False)
+
     if args.render_engine == 'CYCLES':
         # Using Cycles Render Engine
         scene.render.engine = 'CYCLES'
@@ -63,16 +102,9 @@ def main():
         scene.render.alpha_mode = 'TRANSPARENT'
         # scene.render.use_shadows = False
         # scene.render.use_raytrace = False
+        setup_blender_engine_lights(scene)
     else:
         raise RuntimeError('Unhandled render engine choice made')
-
-    # clear default Cube object
-    bpy.data.objects['Cube'].select = True
-    bpy.ops.object.delete(use_global=False)
-
-    # clear default lights
-    # bpy.ops.object.select_by_type(type='LAMP')
-    # bpy.ops.object.delete(use_global=False)
 
     cam = bpy.data.objects['Camera']
 
@@ -89,8 +121,10 @@ def main():
     K = get_camera_intrinsic_from_blender(cam)
     Kinv = K.inverted()
 
+    # Set camera extrinsic to Identity
     set_blender_camera_extrinsic(cam, Matrix.Identity(3), Vector.Fill(3, 0.0))
 
+    # Loop over all object_infos
     for obj_info in image_info['object_infos']:
         model_name = "model_{:02d}".format(obj_info['id'])
         # Load OBJ file
@@ -114,6 +148,9 @@ def main():
         t = Rdelta * Vector((0., 0., obj_info['center_dist']))
 
         model.matrix_world = Matrix.Translation(t) * R.to_4x4() * model.matrix_world
+
+    # # For debufgging save a blend file (Make sure to disable this when not debugging)
+    # bpy.ops.wm.save_as_mainfile(filepath='test.blend')
 
     # scene.render.image_settings.file_format = 'PNG'
     scene.render.filepath = osp.basename(image_info['image_file'])
