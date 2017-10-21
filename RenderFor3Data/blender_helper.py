@@ -1,3 +1,5 @@
+import math
+
 import bpy
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
@@ -80,16 +82,33 @@ def get_camera_extrinsic_from_blender(cam):
     T_world2bcam = -1 * R_world2bcam * location
 
     # Build the coordinate transform matrix from world to computer vision camera
-    R_world2cv = R_bcam2cv * R_world2bcam
-    T_world2cv = R_bcam2cv * T_world2bcam
+    R = R_bcam2cv * R_world2bcam
+    t = R_bcam2cv * T_world2bcam
 
     # put into 3x4 matrix
-    RT = Matrix((
-        R_world2cv[0][:] + (T_world2cv[0],),
-        R_world2cv[1][:] + (T_world2cv[1],),
-        R_world2cv[2][:] + (T_world2cv[2],)
-    ))
-    return RT
+    Rt = Matrix((R[0][:] + (t[0],),
+                 R[1][:] + (t[1],),
+                 R[2][:] + (t[2],)))
+    return Rt
+
+
+def set_blender_camera_extrinsic(cam, R, t):
+    """
+    Move blender camera to have the provided extrinsic of [R|t]
+    """
+    # bcam stands for blender camera
+    R_cv2bcam = Matrix(((1,  0,  0),
+                        (0, -1,  0),
+                        (0,  0, -1)))
+
+    # Build the coordinate transform matrix from world to computer vision camera
+    R_world2bcam = R_cv2bcam * R
+    t_world2bcam = R_cv2bcam * t
+
+    R_bcam2world = R_world2bcam.transposed()
+    t_bcam2world = -1 * R_bcam2world * t_world2bcam
+
+    cam.matrix_world = Matrix.Translation(t_bcam2world) * R_bcam2world.to_4x4()
 
 
 def project_by_object_utils(cam, point):
@@ -141,3 +160,97 @@ def set_blender_camera_from_intrinsics(cam, K):
         # the sensor height is effectively changed with the pixel aspect ratio
         camd.sensor_width = W / sensor_scale_x
         camd.sensor_height = H * pixel_aspect_ratio / sensor_scale_y
+
+
+def wrap_to_pi(radians):
+    """Wrap an angle (in radians) to [-pi, pi)"""
+    # wrap to [0..2*pi]
+    wrapped = radians % (2 * math.pi)
+    # wrap to [-pi..pi]
+    if wrapped >= math.pi:
+        wrapped -= 2 * math.pi
+
+    return wrapped
+
+
+def is_rotation_matrix(R, atol=1e-6):
+    """Checks if a matrix is a valid rotation matrix"""
+    assert len(R.row) == 3, "R is not a 3x3 matrix. R = {}".format(R)
+    assert len(R.col) == 3, "R is not a 3x3 matrix. R = {}".format(R)
+    Rt = R.transposed()
+    shouldBeIdentity = Rt * R
+    I = Matrix.Identity(3)
+    delta = I - shouldBeIdentity
+    sq_norm = 0.0
+    for i in range(3):
+        for j in range(3):
+            sq_norm += (delta[i][j] ** 2)
+    return math.sqrt(sq_norm) < atol
+
+
+def skew_symm(x):
+    """Returns skew-symmetric matrix from vector of length 3"""
+    assert len(x) == 3, "x is not vector of length 3 since x = {}".format(x)
+    return Matrix(((0, -x[2], x[1]),
+                   (x[2], 0, -x[0]),
+                   (-x[1], x[0], 0)))
+
+
+def rotation_from_two_vectors(a, b):
+    """
+    Returns rotation matrix that rotates a to be same as b
+    See https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d/476311#476311
+    """
+    assert len(a) == 3
+    assert len(b) == 3
+    au = a.normalized()
+    bu = b.normalized()
+    ssv = skew_symm(au.cross(bu))
+    c = au.dot(bu)
+    assert c != -1.0, 'Cannot handle case when a and b are exactly opposite'
+    inv_one_plus_c = 1. / (1. + c)
+    R = Matrix.Identity(3) + ssv + inv_one_plus_c * (ssv * ssv)
+    assert is_rotation_matrix(R)
+    return R
+
+
+def rotationX(angle):
+    """Get the rotation matrix for rotation around X"""
+    c = math.cos(angle)
+    s = math.sin(angle)
+    Rx = Matrix(((1, 0,  0),
+                 (0, c, -s),
+                 (0, s,  c)))
+    return Rx
+
+
+def rotationY(angle):
+    """Get the rotation matrix for rotation around X"""
+    c = math.cos(angle)
+    s = math.sin(angle)
+    Ry = Matrix(((c,  0, s),
+                 (0,  1, 0),
+                 (-s, 0, c)))
+    return Ry
+
+
+def rotationZ(angle):
+    """Get the rotation matrix for rotation around X"""
+    c = math.cos(angle)
+    s = math.sin(angle)
+    Rz = Matrix(((c, -s, 0),
+                 (s,  c, 0),
+                 (0,  0, 1)))
+    return Rz
+
+
+def rotation_from_viewpoint(vp):
+    """Get rotation matrix from viewpoint [azimuth, elevation, tilt]"""
+    assert len(vp) == 3
+    assert -math.pi <= vp[0] <= math.pi
+    assert -math.pi / 2 <= vp[1] <= math.pi / 2
+    assert -math.pi <= vp[2] <= math.pi
+
+    R = rotationZ(-vp[2] - math.pi / 2) * rotationY(vp[1] + math.pi / 2) * rotationZ(-vp[0])
+    assert is_rotation_matrix(R)
+    return R
