@@ -253,3 +253,16 @@ def rotation_from_viewpoint(vp):
     R = rotationZ(-vp[2] - math.pi / 2) * rotationY(vp[1] + math.pi / 2) * rotationZ(-vp[0])
     assert is_rotation_matrix(R)
     return R
+
+
+def spherical_to_cartesian(azimuth, elevation, radial):
+    """
+    Get cartesian coord from spherrical coord
+    We use the ISO (physics) convention (elevation = pi/2 - inclination)
+    But we have elevation instead of inclination.
+    See https://en.wikipedia.org/wiki/Spherical_coordinate_system
+    """
+    x = (radial * math.cos(elevation) * math.cos(azimuth))
+    y = (radial * math.cos(elevation) * math.sin(azimuth))
+    z = (radial * math.sin(elevation))
+    return Vector((x, y, z))
