@@ -16,7 +16,6 @@ def main():
     root_dir = osp.dirname(osp.abspath(__file__))
     default_render_script = osp.join(root_dir, 'render_single_image_info.py')
 
-
     parser = argparse.ArgumentParser()
     parser.add_argument("image_infos_dir", nargs=1, type=str, help="Path to output directory")
     parser.add_argument("-g", "--num_of_gpus", default=1, type=int, help="Number of gpus in system.")
@@ -36,7 +35,7 @@ def main():
     # Glob image info files
     image_info_files = glob(osp.join(image_infos_dir, '*_info.json'))
     assert image_info_files, "No image_info json files found in {}".format(image_infos_dir)
- 
+
     print('Generating rendering commands ...')
     commands = []
     for idx, image_info_file in enumerate(tqdm(image_info_files)):

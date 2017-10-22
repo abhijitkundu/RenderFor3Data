@@ -55,7 +55,7 @@ def setup_cycles_engine_lights():
 
     # Set background color and strength
     bg = world.node_tree.nodes['Background']
-    bg.inputs[0].default_value[:3] = (np.random.uniform(0.9, 1.0), np.random.uniform(0.9, 1.0), np.random.uniform(0.9, 1.0))
+    bg.inputs[0].default_value[:3] = (np.random.uniform(0.85, 1.0), np.random.uniform(0.85, 1.0), np.random.uniform(0.85, 1.0))
     bg.inputs[1].default_value = np.random.uniform(0.06, 1.0)
 
     for _ in range(np.random.randint(2, 7)):
