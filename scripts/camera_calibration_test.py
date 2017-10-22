@@ -10,14 +10,8 @@ from RenderFor3Data.blender_helper import (
     get_camera_extrinsic_from_blender,
     project_by_object_utils,
     set_blender_camera_from_intrinsics,
+    print_blender_object_atrributes
 )
-
-def print_object_attributes(obj):
-    """Helper to print object attributes"""
-    for attr in dir(obj):
-        if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
-
 
 def main():
     """main function"""
@@ -32,7 +26,7 @@ def main():
 
     cam = bpy.data.objects['Camera']
 
-    print_object_attributes(cam.data)
+    print_blender_object_atrributes(cam.data)
 
     K = get_camera_intrinsic_from_blender(cam)
     RT = get_camera_extrinsic_from_blender(cam)

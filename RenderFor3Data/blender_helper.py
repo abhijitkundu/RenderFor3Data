@@ -4,6 +4,14 @@ import bpy
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
 
+def print_blender_object_atrributes(obj):
+    """Helper to print blender object attributes"""
+    print("-------------------------------------------------")
+    for attr in dir(obj):
+        if hasattr(obj, attr):
+            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+    print("-------------------------------------------------")
+
 
 def get_camera_intrinsic_from_blender(cam):
     """Get the camera intrinsic matrix K for blender camera"""

@@ -9,30 +9,31 @@ import sys
 import numpy as np
 
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, Color
 from RenderFor3Data.blender_helper import (get_camera_intrinsic_from_blender,
                                            rotation_from_two_vectors,
                                            rotation_from_viewpoint,
                                            set_blender_camera_extrinsic,
                                            set_blender_camera_from_intrinsics,
-                                           spherical_to_cartesian)
+                                           spherical_to_cartesian,
+                                           print_blender_object_atrributes)
 
 
 def setup_blender_engine_lights(scene):
     """Set lighting for BLENDER_RENDER engine"""
+    # set environment lighting
+    # bpy.context.space_data.context = 'WORLD'
+    light_environment_energy_range = [0.08, 1]
+    scene.world.light_settings.use_environment_light = True
+    scene.world.light_settings.environment_energy = np.random.uniform(light_environment_energy_range[0], light_environment_energy_range[1])
+    scene.world.light_settings.environment_color = 'PLAIN'
+
     light_num_range = [2, 7]
     light_dist_range = [8, 20]
     light_azimuth_range = np.radians([0.0, 360.0])
     light_elevation_range = np.radians([0.0, 90.0])
-    light_environment_energy_range = [0.1, 1]
     light_energy_mean = 2
     light_energy_std = 2
-
-    # set environment lighting
-    # bpy.context.space_data.context = 'WORLD'
-    scene.world.light_settings.use_environment_light = True
-    scene.world.light_settings.environment_energy = np.random.uniform(light_environment_energy_range[0], light_environment_energy_range[1])
-    scene.world.light_settings.environment_color = 'PLAIN'
 
     # set point lights
     for _ in range(np.random.randint(light_num_range[0], light_num_range[1])):
@@ -45,6 +46,21 @@ def setup_blender_engine_lights(scene):
         bpy.ops.object.lamp_add(type='POINT', view_align=False, location=-lamp_location)
         bpy.data.objects['Point'].data.energy = np.random.normal(light_energy_mean, light_energy_std)
         # print('lamp_location = ', lamp_location)
+
+def setup_cycles_engine_lights():
+    """Set lighting for BLENDER_RENDER engine"""
+
+    world = bpy.data.worlds['World']
+    world.use_nodes = True
+
+    # Set background color and strength
+    bg = world.node_tree.nodes['Background']
+    bg.inputs[0].default_value[:3] = (np.random.uniform(0.9, 1.0), np.random.uniform(0.9, 1.0), np.random.uniform(0.9, 1.0))
+    bg.inputs[1].default_value = np.random.uniform(0.06, 1.0)
+
+    for _ in range(np.random.randint(2, 7)):
+        bpy.ops.object.lamp_add(type='SUN', view_align=False, rotation=np.random.uniform(-1.0, 1.0, size=3))
+        # bpy.data.objects['SUN'].data.energy = 1.5
 
 
 def main():
@@ -84,7 +100,7 @@ def main():
         scene.render.engine = 'CYCLES'
         bpy.data.materials['Material'].use_nodes = True
         scene.cycles.shading_system = True
-        # scene.use_nodes = True
+        scene.use_nodes = True
         scene.render.image_settings.color_mode = 'RGBA'
         scene.cycles.film_transparent = True
 
@@ -96,12 +112,13 @@ def main():
                 device.use = False
             assert args.gpu < len(cycles_prefs.devices), "Bad gpu provided"
             cycles_prefs.devices[args.gpu].use = True
+        setup_cycles_engine_lights()
     elif args.render_engine == 'BLENDER_RENDER':
         # Using Blender Render Engine
         scene.render.engine = 'BLENDER_RENDER'
         scene.render.alpha_mode = 'TRANSPARENT'
-        # scene.render.use_shadows = False
-        # scene.render.use_raytrace = False
+        scene.render.use_shadows = True
+        scene.render.use_raytrace = True
         setup_blender_engine_lights(scene)
     else:
         raise RuntimeError('Unhandled render engine choice made')
