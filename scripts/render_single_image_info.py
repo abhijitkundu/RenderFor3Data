@@ -107,7 +107,7 @@ def main():
         scene.cycles.device = 'GPU'
         cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
         cycles_prefs.compute_device_type = "CUDA"
-        if args.gpu:
+        if args.gpu is not None:
             for device in cycles_prefs.devices:
                 device.use = False
             assert args.gpu < len(cycles_prefs.devices), "Bad gpu provided"
