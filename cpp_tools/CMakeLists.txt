@@ -6,6 +6,7 @@ set(_APPS
   visualizeRandomViewpoints
   visualizeMutiObjectRandomViewpoints  
   generateMultiObjectRandomDataset
+  visualizeKittiSyntheticViewpoints
 )
 
 foreach(APP ${_APPS})
