@@ -162,15 +162,41 @@ class ViewpointBrowser : public WindowRenderViewer {
     const ImageInfo& img_info = image_dataset_.image_infos.at(img_index_);
     const Eigen::Matrix3d K_inv = img_info.image_intrinsic.value().inverse();
 
+    std::uniform_real_distribution<float> hue_dist(0.0f, 1.0f);
+    std::uniform_real_distribution<float> sat_dist(0.95f, 1.0f);
+    std::uniform_real_distribution<float> val_dist(0.95f, 1.0f);
+
     for (const auto& obj_info : cb_obj_infos_) {
+      MeshData mesh = loadRandomMesh();
+
+      const float golden_ratio_conjugate = 0.618033988749895f;
+      const float hue = 360.0f * std::fmod(hue_dist(rnd_eng_) + golden_ratio_conjugate, 1.0f);
+      const MeshData::ColorType color = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_));
+      CuteGL::colorizeMesh(mesh, color);
+
 
       const Eigen::Vector3d half_dimension = obj_info.dimension.value() / 2;
       const Eigen::AlignedBox3d bbx(-half_dimension, half_dimension);
-
       Eigen::Isometry3d pose = pose_from_obj_info(obj_info, K_inv);
 
+
+      Eigen::Affine3d affine_model_pose = pose * Eigen::UniformScaling<double>(bbx.diagonal().norm());
+
+
+      renderer_->modelDrawers().addItem(affine_model_pose.cast<float>(), mesh);
       renderer_->bbxDrawers().addItem(pose.cast<float>(), bbx.cast<float>());
     }
+  }
+
+  MeshData loadRandomMesh() {
+    ++model_index_;
+    if (model_index_ >= model_indices_.size()) {
+      model_index_ = 0;
+      std::shuffle(model_indices_.begin(), model_indices_.end(), rnd_eng_);
+    }
+
+    const std::string model_file = model_filepaths_.at(model_indices_.at(model_index_));
+    return loadMeshFromPLY(model_file);
   }
 
 
@@ -237,6 +263,11 @@ int main(int argc, char **argv) {
   renderer->phongShader().program.bind();
   renderer->phongShader().setLightPosition(0.0f, -50.0f, 10.0f);
   renderer->phongShader().program.release();
+
+  std::cout << "Reading model filelist ..." << std::flush;
+  std::size_t num_of_models = viewer.readModelFilesList(RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_clean_cars.txt",
+                                                        RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_PLY/Cars/", ".ply");
+  std::cout << "We now have " << num_of_models << " models." << std::endl;
 
   viewer.update();
   app.exec();
