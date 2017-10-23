@@ -21,6 +21,9 @@ def main():
     parser.add_argument("-g", "--num_of_gpus", default=1, type=int, help="Number of gpus in system.")
     parser.add_argument("-t", "--num_of_threads", default=12, type=int, help="Number of parallel threads to use")
     parser.add_argument("-s", "--render_script", default=default_render_script, type=str, help="Path to render script")
+    parser.add_argument("-e", "--extra_args", default='', type=str, help="extra arguements for the rendering script")
+    parser.add_argument('--dryrun', dest='dryrun', action='store_true')
+    parser.set_defaults(dryrun=False)
     args = parser.parse_args()
 
     image_infos_dir = args.image_infos_dir[0]
@@ -40,14 +43,18 @@ def main():
     commands = []
     for idx, image_info_file in enumerate(tqdm(image_info_files)):
         gpu_id = idx % args.num_of_gpus
-        command = "blender --background --python {} -- {} -g {} > /dev/null 2>&1".format(args.render_script, image_info_file, gpu_id)
+        command = "blender --background --python {} -- {} -g {} {} > /dev/null 2>&1".format(args.render_script, image_info_file, gpu_id, args.extra_args)
         commands.append(command)
 
-    pool = Pool(args.num_of_threads)
-    print ('Rendering images with {} threads and {} gpus. This can take days.'.format(args.num_of_threads, args.num_of_gpus))
-    for idx, return_code in enumerate(tqdm(pool.imap(partial(call, shell=True), commands))):
-        if return_code != 0:
-            print('Rendering failed for {}'.format(image_info_files[idx]))
+    if args.dryrun:
+        for cmd in commands:
+            print(cmd)
+    else:
+        pool = Pool(args.num_of_threads)
+        print ('Rendering images with {} threads and {} gpus. This can take days.'.format(args.num_of_threads, args.num_of_gpus))
+        for idx, return_code in enumerate(tqdm(pool.imap(partial(call, shell=True), commands))):
+            if return_code != 0:
+                print('Rendering failed for {}'.format(image_info_files[idx]))
 
 
 if __name__ == '__main__':
