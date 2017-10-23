@@ -59,7 +59,7 @@ def setup_cycles_engine_lights():
     bg.inputs[1].default_value = np.random.uniform(0.06, 1.0)
 
     for _ in range(np.random.randint(2, 7)):
-        bpy.ops.object.lamp_add(type='SUN', view_align=False, rotation=np.random.uniform(-1.0, 1.0, size=3))
+        bpy.ops.object.lamp_add(type='SUN', view_align=False, rotation=np.random.uniform(-np.pi, np.pi, size=3))
         # bpy.data.objects['SUN'].data.energy = 1.5
 
 
