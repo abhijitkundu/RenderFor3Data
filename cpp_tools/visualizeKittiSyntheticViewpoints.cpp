@@ -21,6 +21,7 @@
 #include <boost/filesystem.hpp>
 #include <QApplication>
 #include <random>
+#include <unordered_set>
 #include <fstream>
 #include <iostream>
 
@@ -32,10 +33,21 @@ Eigen::Isometry3d pose_from_obj_info(const ImageObjectInfo& obj_info, const Eige
   return pose;
 }
 
+std::vector<std::size_t> chooseRandomSunset(std::size_t N, std::size_t k, std::mt19937& gen) {
+  std::uniform_int_distribution<std::size_t> dis(0, N-1);
+  std::unordered_set<std::size_t> set;
+  while (set.size() < k) {
+    set.insert(dis(gen));
+  }
+  std::vector<std::size_t> result(set.begin(), set.end());
+  return result;
+}
+
 namespace CuteGL {
 
 class ViewpointBrowser : public WindowRenderViewer {
  public:
+  using MeshType = Mesh<float, float, unsigned char, int>;
 
   enum Action {
     NEXT_IMAGE = 100,
@@ -47,7 +59,6 @@ class ViewpointBrowser : public WindowRenderViewer {
         renderer_(renderer),
         num_of_objects_per_image_(num_of_objects_per_image),
         img_index_(0),
-        model_index_(0),
         rnd_eng_ {42} {
 
     keyboard_handler_.registerKey(NEXT_IMAGE, Qt::Key_Right, "Next image");
@@ -61,24 +72,61 @@ class ViewpointBrowser : public WindowRenderViewer {
     }
   }
 
-  std::size_t readModelFilesList(const std::string& models_list_filepath, const std::string& prefix, const std::string& suffix) {
-    std::ifstream file(models_list_filepath.c_str(), std::ios::in);
-    if (!file.is_open()) {
-      throw std::runtime_error("Cannot open File from " + models_list_filepath);
+  std::size_t loadAllModels(const std::string& models_list_filepath, const std::string& prefix, const std::string& suffix) {
+
+    std::vector<std::string> model_filepaths;
+    {
+      std::ifstream file(models_list_filepath.c_str(), std::ios::in);
+      if (!file.is_open()) {
+        throw std::runtime_error("Cannot open File from " + models_list_filepath);
+      }
+
+      std::string line;
+      while (std::getline(file, line)) {
+        model_filepaths.push_back(prefix + line + suffix);
+      }
+      file.close();
     }
 
-    std::string line;
-    while (std::getline(file, line)) {
-      model_filepaths_.push_back(prefix + line + suffix);
+    {
+      // Load all models
+      models_.resize(model_filepaths.size());
+      model_dimensions_.resize(model_filepaths.size());
+
+      std::uniform_real_distribution<float> hue_dist(0.0f, 1.0f);
+      std::uniform_real_distribution<float> sat_dist(0.95f, 1.0f);
+      std::uniform_real_distribution<float> val_dist(0.95f, 1.0f);
+
+#pragma omp parallel for
+      for (std::size_t i= 0; i < model_filepaths.size(); ++i) {
+        MeshData legacy_mesh = loadMeshFromPLY(model_filepaths[i]);
+        Eigen::AlignedBox3f bbx  = computeAlignedBox(legacy_mesh);
+        model_dimensions_[i] = bbx.sizes().cast<double>();
+
+        const float golden_ratio_conjugate = 0.618033988749895f;
+        const float hue = 360.0f * std::fmod(hue_dist(rnd_eng_) + golden_ratio_conjugate, 1.0f);
+        const CuteGL::MeshData::ColorType color = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_));
+
+        MeshType& mesh = models_[i];
+        {
+          mesh.positions.resize(legacy_mesh.vertices.size(), Eigen::NoChange);
+          mesh.normals.resize(legacy_mesh.vertices.size(), Eigen::NoChange);
+          for (Eigen::Index vid= 0; vid < mesh.positions.rows(); ++vid) {
+            mesh.positions.row(vid) = legacy_mesh.vertices[vid].position;
+            mesh.normals.row(vid) = legacy_mesh.vertices[vid].normal;
+          }
+          mesh.colors.resize(legacy_mesh.vertices.size(), Eigen::NoChange);
+          mesh.colors.rowwise() = color.transpose();
+          mesh.labels.setConstant(legacy_mesh.vertices.size(), i);
+          mesh.faces = legacy_mesh.faces;
+        }
+      }
     }
 
-    file.close();
+    assert(models_.size() == model_filepaths.size());
+    assert(model_dimensions_.size() == model_filepaths.size());
 
-    model_indices_.resize(model_filepaths_.size());
-    std::iota(model_indices_.begin(), model_indices_.end(), 0);
-    std::shuffle(model_indices_.begin(), model_indices_.end(), rnd_eng_);
-
-    return model_indices_.size();
+    return model_filepaths.size();
   }
 
   void update() {
@@ -111,8 +159,11 @@ class ViewpointBrowser : public WindowRenderViewer {
     const ImageInfo::ImageObjectInfos& current_image_obj_infos = img_info.object_infos.value();
     // Populate as much as possible from current image
     for (size_t i = 0; i < std::min(num_of_objects_per_image_, current_image_obj_infos.size()); ++i) {
-      cb_obj_infos_.push_back(current_image_obj_infos[i]);
-      cb_poses.push_back(pose_from_obj_info(current_image_obj_infos[i], K_inv));
+      ImageObjectInfo obj_info = current_image_obj_infos[i];
+
+      find_best_fitting_model(obj_info, 100);
+      cb_obj_infos_.push_back(obj_info);
+      cb_poses.push_back(pose_from_obj_info(obj_info, K_inv));
     }
 
     // Fill the rest by random sampling and jittering
@@ -129,7 +180,8 @@ class ViewpointBrowser : public WindowRenderViewer {
         vp += Eigen::Vector3d(azimuth_delta_dis(rnd_eng_), elevation_delta_dis(rnd_eng_), tilt_delta_dis(rnd_eng_)) * M_PI / 180.0;
         //TODO re wrap to pi
 
-        Eigen::Isometry3d pose = pose_from_obj_info(random_obj_info, K_inv);
+        find_best_fitting_model(random_obj_info, 10);
+        const Eigen::Isometry3d pose = pose_from_obj_info(random_obj_info, K_inv);
 
         bool collision_free = true;
         // check for all previous poses for collision
@@ -151,29 +203,36 @@ class ViewpointBrowser : public WindowRenderViewer {
     }
   }
 
+  void find_best_fitting_model(ImageObjectInfo& obj_info, std::size_t K) {
+    const Eigen::Vector3d gt_dimension_normalized = obj_info.dimension.value().normalized();
+    std::vector<std::size_t> model_subset_indices = chooseRandomSunset(models_.size(), K, rnd_eng_);
+    // Choose the best fitting model
+    std::size_t best_model_id = 0;
+    {
+      double min_diff = std::numeric_limits<double>::max();
+      for (std::size_t model_id : model_subset_indices) {
+        double diff = (gt_dimension_normalized - model_dimensions_.at(model_id)).norm();
+        if (diff < min_diff) {
+          min_diff = diff;
+          best_model_id = model_id;
+        }
+      }
+    }
+    obj_info.id = best_model_id;
+    obj_info.dimension = model_dimensions_.at(best_model_id) * obj_info.dimension.value().norm();
+  }
+
 
   void visualizeCurrentImageObjectInfos() {
     assert(cb_obj_infos_.size() == num_of_objects_per_image_);
-    assert(model_filepaths_.size() == model_indices_.size());
-    assert(num_of_objects_per_image_ <= model_indices_.size());
     renderer_->modelDrawers().clear();
     renderer_->bbxDrawers().clear();
 
     const ImageInfo& img_info = image_dataset_.image_infos.at(img_index_);
     const Eigen::Matrix3d K_inv = img_info.image_intrinsic.value().inverse();
 
-    std::uniform_real_distribution<float> hue_dist(0.0f, 1.0f);
-    std::uniform_real_distribution<float> sat_dist(0.95f, 1.0f);
-    std::uniform_real_distribution<float> val_dist(0.95f, 1.0f);
-
     for (const auto& obj_info : cb_obj_infos_) {
-      MeshData mesh = loadRandomMesh();
-
-      const float golden_ratio_conjugate = 0.618033988749895f;
-      const float hue = 360.0f * std::fmod(hue_dist(rnd_eng_) + golden_ratio_conjugate, 1.0f);
-      const MeshData::ColorType color = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_));
-      CuteGL::colorizeMesh(mesh, color);
-
+      std::size_t model_id = obj_info.id.value();
 
       const Eigen::Vector3d half_dimension = obj_info.dimension.value() / 2;
       const Eigen::AlignedBox3d bbx(-half_dimension, half_dimension);
@@ -183,22 +242,10 @@ class ViewpointBrowser : public WindowRenderViewer {
       Eigen::Affine3d affine_model_pose = pose * Eigen::UniformScaling<double>(bbx.diagonal().norm());
 
 
-      renderer_->modelDrawers().addItem(affine_model_pose.cast<float>(), mesh);
+      renderer_->modelDrawers().addItem(affine_model_pose.cast<float>(), models_.at(model_id));
       renderer_->bbxDrawers().addItem(pose.cast<float>(), bbx.cast<float>());
     }
   }
-
-  MeshData loadRandomMesh() {
-    ++model_index_;
-    if (model_index_ >= model_indices_.size()) {
-      model_index_ = 0;
-      std::shuffle(model_indices_.begin(), model_indices_.end(), rnd_eng_);
-    }
-
-    const std::string model_file = model_filepaths_.at(model_indices_.at(model_index_));
-    return loadMeshFromPLY(model_file);
-  }
-
 
   virtual void handleKeyboardAction(int action) {
     switch (action) {
@@ -225,9 +272,8 @@ class ViewpointBrowser : public WindowRenderViewer {
   ImageInfo::ImageObjectInfos all_object_infos_;
   std::size_t img_index_;
 
-  std::vector<std::string> model_filepaths_;
-  std::vector<std::size_t> model_indices_;
-  std::size_t model_index_;
+  std::vector<MeshType> models_;
+  std::vector<Eigen::Vector3d> model_dimensions_;
 
   ImageInfo::ImageObjectInfos cb_obj_infos_;
 
@@ -264,9 +310,9 @@ int main(int argc, char **argv) {
   renderer->phongShader().setLightPosition(0.0f, -50.0f, 10.0f);
   renderer->phongShader().program.release();
 
-  std::cout << "Reading model filelist ..." << std::flush;
-  std::size_t num_of_models = viewer.readModelFilesList(RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_clean_cars.txt",
-                                                        RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_PLY/Cars/", ".ply");
+  std::cout << "Loading all models ..." << std::flush;
+  std::size_t num_of_models = viewer.loadAllModels(RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_clean_cars.txt",
+                                                   RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_PLY/Cars/", ".ply");
   std::cout << "We now have " << num_of_models << " models." << std::endl;
 
   viewer.update();
