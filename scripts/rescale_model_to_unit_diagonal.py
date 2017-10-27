@@ -17,6 +17,9 @@ def main():
     parser.add_argument('obj_file', type=str, help='path to obj_file file')
     args = parser.parse_args(argv)
 
+    print("Starting to work on {}".format(args.obj_file))
+    assert osp.exists(args.obj_file)
+
     # clear default lights
     bpy.ops.object.select_by_type(type='LAMP')
     bpy.ops.object.delete(use_global=False)
