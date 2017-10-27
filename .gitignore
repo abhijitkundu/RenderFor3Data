@@ -11,6 +11,7 @@ logs/
 
 # Ignore some dataset_directories
 data/GT3DModels
+data/3DModelCollection
 data/ShapeNetCore_v1
 data/ShapeNetCore_v1_PLY
 data/view_distribution

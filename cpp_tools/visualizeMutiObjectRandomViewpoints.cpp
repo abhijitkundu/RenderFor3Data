@@ -89,7 +89,7 @@ class ViewpointBrowser : public WindowRenderViewer {
     return vp_indices_.size();
   }
 
-  std::size_t readModelFilesList(const std::string& models_list_filepath, const std::string& prefix, const std::string& suffix) {
+  std::size_t readModelFilesList(const std::string& models_list_filepath, const std::string& prefix, const std::string& suffix="") {
     std::ifstream file(models_list_filepath.c_str(), std::ios::in);
     if (!file.is_open()) {
       throw std::runtime_error("Cannot open File from " + models_list_filepath);
@@ -271,8 +271,8 @@ int main(int argc, char **argv) {
   std::cout << "We now have " << num_of_vps << " viewpoints." << std::endl;
 
   std::cout << "Reading model filelist ..." << std::flush;
-  std::size_t num_of_models = viewer.readModelFilesList(RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_clean_cars.txt",
-                                                 RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_PLY/Cars/", ".ply");
+  std::size_t num_of_models = viewer.readModelFilesList(RENDERFOR3DATA_ROOT_DIR "/data/cars_shape_files_ply.txt",
+                                                        RENDERFOR3DATA_ROOT_DIR "/data/3DModelCollection/");
   std::cout << "We now have " << num_of_models << " models." << std::endl;
 
   app.exec();
