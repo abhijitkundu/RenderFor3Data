@@ -72,7 +72,7 @@ class ViewpointBrowser : public WindowRenderViewer {
     }
   }
 
-  std::size_t loadAllModels(const std::string& models_list_filepath, const std::string& prefix, const std::string& suffix) {
+  std::size_t loadAllModels(const std::string& models_list_filepath, const std::string& prefix, const std::string& suffix = "") {
 
     std::vector<std::string> model_filepaths;
     {
@@ -311,8 +311,8 @@ int main(int argc, char **argv) {
   renderer->phongShader().program.release();
 
   std::cout << "Loading all models ..." << std::flush;
-  std::size_t num_of_models = viewer.loadAllModels(RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_clean_cars.txt",
-                                                   RENDERFOR3DATA_ROOT_DIR "/data/ShapeNetCore_v1_PLY/Cars/", ".ply");
+  std::size_t num_of_models = viewer.loadAllModels(RENDERFOR3DATA_ROOT_DIR "/data/cars_shape_files_ply.txt",
+                                                   RENDERFOR3DATA_ROOT_DIR "/data/CityShapes/");
   std::cout << "We now have " << num_of_models << " models." << std::endl;
 
   viewer.update();

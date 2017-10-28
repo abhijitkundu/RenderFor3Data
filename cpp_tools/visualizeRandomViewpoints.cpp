@@ -5,6 +5,7 @@
  * @author Abhijit Kundu
  */
 
+#include "RenderFor3Data/Config.h"
 #include "CuteGL/Renderer/MultiObjectRenderer.h"
 #include "CuteGL/Surface/WindowRenderViewer.h"
 #include "CuteGL/Core/Config.h"
@@ -101,7 +102,7 @@ int main(int argc, char **argv) {
   using namespace CuteGL;
   using namespace Eigen;
 
-  std::string vp_file = "/home/abhijit/Workspace/RenderFor3Data/data/view_distribution/voc2012_kitti/car.txt";
+  std::string vp_file = RENDERFOR3DATA_ROOT_DIR "/data/view_distribution/voc2012_kitti/car.txt";
 
   std::unique_ptr<MultiObjectRenderer> renderer(new MultiObjectRenderer());
 

@@ -443,13 +443,12 @@ int main(int argc, char **argv) {
   MultiObjectDatasetGenerator dataset_generator(dataset_name, num_of_objects_per_image);
 
   std::cout << "Reading viewpoints ..." << std::flush;
-  std::size_t num_of_vps = dataset_generator.readViewpoints(
-      RENDERFOR3DATA_ROOT_DIR "/data/view_distribution/voc2012_kitti/car.txt");
+  std::size_t num_of_vps = dataset_generator.readViewpoints(RENDERFOR3DATA_ROOT_DIR "/data/view_distribution/voc2012_kitti/car.txt");
   std::cout << "We now have " << num_of_vps << " viewpoints." << std::endl;
 
   std::cout << "Reading model filelist ..." << std::flush;
   std::size_t num_of_models = dataset_generator.readModelFilesList(RENDERFOR3DATA_ROOT_DIR "/data/cars_shape_files_ply.txt",
-                                                                   RENDERFOR3DATA_ROOT_DIR "/data/3DModelCollection/");
+                                                                   RENDERFOR3DATA_ROOT_DIR "/data/CityShapes/");
   std::cout << "We now have " << num_of_models << " models." << std::endl;
 
   std::cout << "Rendering Images ..." << std::endl;
