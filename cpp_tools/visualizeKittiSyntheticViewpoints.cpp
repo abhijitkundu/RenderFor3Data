@@ -285,6 +285,9 @@ class ViewpointBrowser : public WindowRenderViewer {
 
 int main(int argc, char **argv) {
 
+  const int num_of_objects_per_image = argc > 1 ? std::stoi(argv[1]) : 32;
+  std::cout << "num_of_objects_per_image = " << num_of_objects_per_image << std::endl;
+
   QApplication app(argc, argv);
 
   using namespace CuteGL;
@@ -294,7 +297,7 @@ int main(int argc, char **argv) {
   renderer->setDisplayAxis(false);
 
   const std::string kitti_gt_json_file = RENDERFOR3DATA_ROOT_DIR "/data/kitti_trainval_full.json";
-  ViewpointBrowser viewer(renderer.get(), 32, kitti_gt_json_file);
+  ViewpointBrowser viewer(renderer.get(), num_of_objects_per_image, kitti_gt_json_file);
   viewer.setBackgroundColor(0, 0, 0);
 
   const int W = 1600;
@@ -307,7 +310,7 @@ int main(int argc, char **argv) {
   viewer.showAndWaitTillExposed();
 
   renderer->phongShader().program.bind();
-  renderer->phongShader().setLightPosition(0.0f, -50.0f, 10.0f);
+  renderer->phongShader().setLightPosition(0.0f, -10.0f, 10.0f);
   renderer->phongShader().program.release();
 
   std::cout << "Loading all models ..." << std::flush;
