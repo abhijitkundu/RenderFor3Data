@@ -70,9 +70,11 @@ def main():
     argv = argv[argv.index("--") + 1:]  # get all args after "--"
 
     render_engine_choices = ['CYCLES', 'BLENDER_RENDER', 'BLENDER_GAME']
+    default_dataset_rootdir = osp.join(osp.dirname(__file__), '..', 'data')
 
     parser = argparse.ArgumentParser(description='Render Single ImageInfo')
     parser.add_argument('image_info_file', type=str, nargs=1, help='path to image info file')
+    parser.add_argument('-d', '--dataset_rootdir', type=str, default=default_dataset_rootdir, help='Dataset root dir')
     parser.add_argument('-r', '--render_engine', default='CYCLES', choices=render_engine_choices, help='Render engine')
     parser.add_argument('-g', '--gpu', type=int, help='GPU device number')
 
@@ -80,6 +82,8 @@ def main():
     image_info_file = args.image_info_file[0]
 
     assert osp.exists(image_info_file), "File '{}' does not exist".format(image_info_file)
+    assert osp.exists(args.dataset_rootdir), "Dataset rootdir '{}' do not exist".format(args.dataset_rootdir)
+    assert osp.isdir(args.dataset_rootdir), "Dataset rootdir '{}' is not a directory".format(args.dataset_rootdir)
 
     with open(image_info_file, 'r') as f:
         image_info = json.load(f)
@@ -144,9 +148,12 @@ def main():
     # Loop over all object_infos
     for obj_info in image_info['object_infos']:
         model_name = "model_{:02d}".format(obj_info['id'])
+        
         # Load OBJ file
-        bpy.ops.import_scene.obj(filepath=obj_info['shape_file'], split_mode='OFF')
-        # bpy.ops.import_scene.obj(filepath=image_info['shape_file'], axis_forward='Y', axis_up='Z')
+        shape_file = osp.join(args.dataset_rootdir, obj_info['shape_file'])
+        assert osp.exists(shape_file), "Shape '{}' do not exist".format(shape_file)
+        bpy.ops.import_scene.obj(filepath=shape_file, split_mode='OFF')
+        # bpy.ops.import_scene.obj(filepath=shape_file, axis_forward='Y', axis_up='Z')
         model = bpy.context.selected_objects[0]
         model.name = model_name
 
