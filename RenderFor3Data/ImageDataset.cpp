@@ -67,9 +67,16 @@ void from_json(const nlohmann::json& json, MatrixBase<Derived> const &mat_) {
     Vec vec = json.get<Vec>();
     using PlainObject = typename Derived::PlainObject;
 
-    Index rows = Derived::MaxRowsAtCompileTime == Dynamic ? vec.size() : 1;
-    Index cols = Derived::MaxColsAtCompileTime == Dynamic ? vec.size() : 1;
-    mat = Map<PlainObject>(vec.data(), rows, cols);
+    if (Derived::SizeAtCompileTime != Dynamic) {
+      if(int(vec.size()) != Derived::SizeAtCompileTime)
+        throw std::runtime_error("Trying to fit different size json array in fixed size eigen matrix");
+      mat = Map<PlainObject>(vec.data(), Derived::MaxRowsAtCompileTime, Derived::MaxColsAtCompileTime);
+    }
+    else {
+      Index rows = Derived::MaxRowsAtCompileTime == Dynamic ? vec.size() : 1;
+      Index cols = Derived::MaxColsAtCompileTime == Dynamic ? vec.size() : 1;
+      mat = Map<PlainObject>(vec.data(), rows, cols);
+    }
   }
   else {
     using VecOfVec = std::vector<std::vector<Scalar>>;

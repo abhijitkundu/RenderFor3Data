@@ -17,6 +17,7 @@
 #include <CuteGL/Geometry/ComputeAlignedBox.h>
 #include <CuteGL/Geometry/OrientedBoxHelper.h>
 
+#include <boost/progress.hpp>
 #include <Eigen/EulerAngles>
 #include <boost/filesystem.hpp>
 #include <QApplication>
@@ -72,7 +73,9 @@ class ViewpointBrowser : public WindowRenderViewer {
     }
   }
 
-  std::size_t loadAllModels(const std::string& models_list_filepath, const std::string& prefix, const std::string& suffix = "") {
+  void loadAllModels(const std::string& models_list_filepath,
+                     const std::string& prefix,
+                     const std::string& suffix = "") {
 
     std::vector<std::string> model_filepaths;
     {
@@ -88,45 +91,54 @@ class ViewpointBrowser : public WindowRenderViewer {
       file.close();
     }
 
-    {
-      // Load all models
-      models_.resize(model_filepaths.size());
-      model_dimensions_.resize(model_filepaths.size());
+    const std::size_t num_of_models = model_filepaths.size();
 
+    std::vector<Eigen::Matrix<unsigned char, 1, 4> > mesh_colors(num_of_models);
+    {
       std::uniform_real_distribution<float> hue_dist(0.0f, 1.0f);
       std::uniform_real_distribution<float> sat_dist(0.95f, 1.0f);
       std::uniform_real_distribution<float> val_dist(0.95f, 1.0f);
-
-#pragma omp parallel for
-      for (std::size_t i= 0; i < model_filepaths.size(); ++i) {
-        MeshData legacy_mesh = loadMeshFromPLY(model_filepaths[i]);
-        Eigen::AlignedBox3f bbx  = computeAlignedBox(legacy_mesh);
-        model_dimensions_[i] = bbx.sizes().cast<double>();
-
+      for (std::size_t i = 0; i < num_of_models; ++i) {
         const float golden_ratio_conjugate = 0.618033988749895f;
         const float hue = 360.0f * std::fmod(hue_dist(rnd_eng_) + golden_ratio_conjugate, 1.0f);
-        const CuteGL::MeshData::ColorType color = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_));
+        mesh_colors[i] = CuteGL::makeRGBAfromHSV(hue, sat_dist(rnd_eng_), val_dist(rnd_eng_)).transpose();
+      }
+    }
 
+    {
+      // Load all models
+      std::cout << "Loading all " << num_of_models << " models ..." << std::endl;
+
+      boost::progress_display show_progress(num_of_models);
+
+      models_.resize(num_of_models);
+      model_dimensions_.resize(num_of_models);
+
+#pragma omp parallel for
+      for (std::size_t i = 0; i < num_of_models; ++i) {
+        CuteGL::MeshData legacy_mesh = CuteGL::loadMeshFromPLY(model_filepaths[i]);
+        Eigen::AlignedBox3f bbx = CuteGL::computeAlignedBox(legacy_mesh);
+        model_dimensions_[i] = bbx.sizes().cast<double>();
         MeshType& mesh = models_[i];
         {
           mesh.positions.resize(legacy_mesh.vertices.size(), Eigen::NoChange);
           mesh.normals.resize(legacy_mesh.vertices.size(), Eigen::NoChange);
-          for (Eigen::Index vid= 0; vid < mesh.positions.rows(); ++vid) {
+          for (Eigen::Index vid = 0; vid < mesh.positions.rows(); ++vid) {
             mesh.positions.row(vid) = legacy_mesh.vertices[vid].position;
             mesh.normals.row(vid) = legacy_mesh.vertices[vid].normal;
           }
           mesh.colors.resize(legacy_mesh.vertices.size(), Eigen::NoChange);
-          mesh.colors.rowwise() = color.transpose();
+          mesh.colors.rowwise() = mesh_colors[i];
           mesh.labels.setConstant(legacy_mesh.vertices.size(), i);
           mesh.faces = legacy_mesh.faces;
         }
+
+        ++show_progress;
       }
     }
 
     assert(models_.size() == model_filepaths.size());
     assert(model_dimensions_.size() == model_filepaths.size());
-
-    return model_filepaths.size();
   }
 
   void update() {
@@ -313,10 +325,8 @@ int main(int argc, char **argv) {
   renderer->phongShader().setLightPosition(0.0f, -10.0f, 10.0f);
   renderer->phongShader().program.release();
 
-  std::cout << "Loading all models ..." << std::flush;
-  std::size_t num_of_models = viewer.loadAllModels(RENDERFOR3DATA_ROOT_DIR "/data/cars_shape_files_ply.txt",
-                                                   RENDERFOR3DATA_ROOT_DIR "/data/CityShapes/");
-  std::cout << "We now have " << num_of_models << " models." << std::endl;
+  viewer.loadAllModels(RENDERFOR3DATA_ROOT_DIR "/data/cars_shape_files_ply.txt",
+                       RENDERFOR3DATA_ROOT_DIR "/data/CityShapes/");
 
   viewer.update();
   app.exec();
