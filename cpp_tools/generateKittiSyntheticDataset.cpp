@@ -230,6 +230,7 @@ class MultiObjectDatasetGenerator {
   void setCameraIntrinsics(const Eigen::Matrix3d& K, const Eigen::Vector2i& image_size) {
     viewer_.resize(image_size[0], image_size[1]);
     viewer_.camera().intrinsics() = CuteGL::getGLPerspectiveProjection(K.cast<float>(), image_size[0], image_size[1], 0.1f, 100.0f);
+    viewer_.recreateFBO();
   }
 
   void sampleCurrentImageObjectInfos() {
