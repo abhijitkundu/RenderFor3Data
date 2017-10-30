@@ -47,6 +47,7 @@ def setup_blender_engine_lights(scene):
         bpy.data.objects['Point'].data.energy = np.random.normal(light_energy_mean, light_energy_std)
         # print('lamp_location = ', lamp_location)
 
+
 def setup_cycles_engine_lights():
     """Set lighting for BLENDER_RENDER engine"""
 
@@ -148,7 +149,7 @@ def main():
     # Loop over all object_infos
     for obj_info in image_info['object_infos']:
         model_name = "model_{:02d}".format(obj_info['id'])
-        
+
         # Load OBJ file
         shape_file = osp.join(args.dataset_rootdir, obj_info['shape_file'])
         assert osp.exists(shape_file), "Shape '{}' do not exist".format(shape_file)
@@ -156,6 +157,11 @@ def main():
         # bpy.ops.import_scene.obj(filepath=shape_file, axis_forward='Y', axis_up='Z')
         model = bpy.context.selected_objects[0]
         model.name = model_name
+
+        # Set athe appropiate object scale
+        obj_dimension = Vector(obj_info['dimension'])
+        scale = obj_dimension.length / model.dimensions.length
+        mat_sca = Matrix.Scale(scale, 4)
 
         # Compute ray through object center
         center_proj = obj_info['center_proj']
@@ -171,7 +177,7 @@ def main():
         R = Rdelta * Rvp
         t = Rdelta * Vector((0., 0., obj_info['center_dist']))
 
-        model.matrix_world = Matrix.Translation(t) * R.to_4x4() * model.matrix_world
+        model.matrix_world = Matrix.Translation(t) * R.to_4x4() * mat_sca * model.matrix_world
 
     # # For debufgging save a blend file (Make sure to disable this when not debugging)
     # bpy.ops.wm.save_as_mainfile(filepath='test.blend')
