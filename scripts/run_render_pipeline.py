@@ -53,7 +53,7 @@ def main():
             print(cmd)
     else:
         pool = Pool(args.num_of_threads)
-        print ('Rendering images with {} threads and {} gpus (). This can take days.'.format(args.num_of_threads, num_of_gpus, args.gpus))
+        print ('Rendering images with {} threads and {} gpus ({}). This can take days.'.format(args.num_of_threads, num_of_gpus, args.gpus))
         for idx, return_code in enumerate(tqdm(pool.imap(partial(call, shell=True), commands))):
             if return_code != 0:
                 print('Rendering failed for {}'.format(image_info_files[idx]))
