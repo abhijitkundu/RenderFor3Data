@@ -270,7 +270,7 @@ class MultiObjectDatasetGenerator {
         ImageObjectInfo random_obj_info = all_object_infos_.at(obj_dis(rnd_eng_));
         Eigen::Vector3d& vp = random_obj_info.viewpoint.value();
         vp += Eigen::Vector3d(azimuth_delta_dis(rnd_eng_), elevation_delta_dis(rnd_eng_), tilt_delta_dis(rnd_eng_)) * M_PI / 180.0;
-        //TODO re wrap to pi
+        vp = vp.unaryExpr(CuteGL::WrapToPi());
 
         find_best_fitting_model(random_obj_info, 10);
         const Eigen::Isometry3d pose = pose_from_obj_info(random_obj_info, K_inv);
@@ -412,6 +412,7 @@ class MultiObjectDatasetGenerator {
     for (Eigen::Index y = 0; y < H; ++y)
       for (Eigen::Index x = 0; x < W; ++x) {
         unsigned char label = label_image(y, x);
+        assert(label <= num_of_objects_per_image_);
         if (label > 0) {
           visible_boxes.at(label - 1).extend(Eigen::Vector2i(x, y));
           ++visible_pixel_counts.at(label - 1);
