@@ -13,6 +13,7 @@ logs/
 data/CityShapes
 data/view_distribution
 data/FlyingCars*
+data/SyntheticKITTI*
 
 #standard build directories
 build/

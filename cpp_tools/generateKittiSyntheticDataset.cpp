@@ -103,7 +103,7 @@ class MultiObjectDatasetGenerator {
     }
 
     synth_image_dataset_.name = dataset_name;
-    synth_image_dataset_.rootdir = fs::path(".");
+    synth_image_dataset_.rootdir = fs::path(RENDERFOR3DATA_ROOT_DIR) / fs::path("data");
     assert(fs::exists(synth_image_dataset_.rootdir));
 
     fs::path image_fp = synth_image_dataset_.rootdir / dataset_name / "color_gl" / "%s_color.png";
@@ -146,8 +146,6 @@ class MultiObjectDatasetGenerator {
   void loadAllModels(const std::string& models_list_filepath,
                             const std::string& prefix,
                             const std::string& suffix = "") {
-
-    std::vector<std::string> model_filepaths;
     {
       std::ifstream file(models_list_filepath.c_str(), std::ios::in);
       if (!file.is_open()) {
@@ -156,12 +154,13 @@ class MultiObjectDatasetGenerator {
 
       std::string line;
       while (std::getline(file, line)) {
-        model_filepaths.push_back(prefix + line + suffix);
+        const std::string model_full_filepath = prefix + line + suffix;
+        model_relative_filepaths_.push_back(relative_path(model_full_filepath, synth_image_dataset_.rootdir).string());
       }
       file.close();
     }
 
-    const std::size_t num_of_models = model_filepaths.size();
+    const std::size_t num_of_models = model_relative_filepaths_.size();
 
     std::vector<Eigen::Matrix<unsigned char, 1, 4> > mesh_colors(num_of_models);
     {
@@ -186,7 +185,7 @@ class MultiObjectDatasetGenerator {
 
 #pragma omp parallel for
       for (std::size_t i = 0; i < num_of_models; ++i) {
-        CuteGL::MeshData legacy_mesh = CuteGL::loadMeshFromPLY(model_filepaths[i]);
+        CuteGL::MeshData legacy_mesh = CuteGL::loadMeshFromPLY((synth_image_dataset_.rootdir / model_relative_filepaths_.at(i)).string());
         Eigen::AlignedBox3f bbx = CuteGL::computeAlignedBox(legacy_mesh);
         model_dimensions_[i] = bbx.sizes().cast<double>();
         MeshType& mesh = models_[i];
@@ -207,8 +206,8 @@ class MultiObjectDatasetGenerator {
       }
     }
 
-    assert(models_.size() == model_filepaths.size());
-    assert(model_dimensions_.size() == model_filepaths.size());
+    assert(models_.size() == model_relative_filepaths_.size());
+    assert(model_dimensions_.size() == model_relative_filepaths_.size());
   }
 
   void renderAndGenerateDataset() {
@@ -312,6 +311,7 @@ class MultiObjectDatasetGenerator {
     }
     obj_info.id = best_model_id;
     obj_info.dimension = model_dimensions_.at(best_model_id) * obj_info.dimension.value().norm();
+    obj_info.shape_file = model_relative_filepaths_.at(best_model_id);
   }
 
   void renderAndCheck() {
@@ -367,6 +367,7 @@ class MultiObjectDatasetGenerator {
         double bbx_amodal_area = (bbx_amodal[2] - bbx_amodal[0]) * (bbx_amodal[3] - bbx_amodal[1]);
         double bbx_truncated_area = (bbx_truncated[2] - bbx_truncated[0]) * (bbx_truncated[3] - bbx_truncated[1]);
         assert(bbx_truncated_area <= bbx_amodal_area);
+        assert(bbx_amodal_area > 0.0);
 
         obj_info.truncation = 1.0 - (bbx_truncated_area / bbx_amodal_area);
       }
@@ -446,10 +447,15 @@ class MultiObjectDatasetGenerator {
         {
           Image32FC1 image_32FC1(H, W);
           viewer_.readLabelBuffer(image_32FC1.data());
-          double amodal_pixel_count = (image_32FC1.array() > 0.1f).count();
+          Eigen::Index amodal_pixel_count = (image_32FC1.array() > 0.1f).count();
 
-          obj_info.occlusion = 1.0 - (visible_pixel_counts.at(i) / amodal_pixel_count);
+          if (amodal_pixel_count)
+            obj_info.occlusion = 1.0 - (visible_pixel_counts.at(i) / (double)amodal_pixel_count);
+          else
+            obj_info.occlusion = 1.0;
+
           assert (obj_info.occlusion.value() <= 1.0);
+          assert (obj_info.occlusion.value() >= 0.0);
         }
 
       }
@@ -474,6 +480,7 @@ class MultiObjectDatasetGenerator {
 
   std::vector<MeshType> models_;
   std::vector<Eigen::Vector3d> model_dimensions_;
+  std::vector<std::string> model_relative_filepaths_;
 
   ImageInfo::ImageObjectInfos cb_obj_infos_;
 
