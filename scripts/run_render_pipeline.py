@@ -17,7 +17,7 @@ def main():
     default_render_script = osp.join(root_dir, 'render_single_image_info.py')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("image_infos_dir", nargs=1, type=str, help="Path to output directory")
+    parser.add_argument("image_infos_dir", nargs=1, type=str, help="Path to image_infos files directory")
     parser.add_argument("-g", "--gpus", nargs='+', default=[0], type=int, help="GPUs to use.")
     parser.add_argument("-t", "--num_of_threads", default=12, type=int, help="Number of parallel threads to use")
     parser.add_argument("-s", "--render_script", default=default_render_script, type=str, help="Path to render script")
