@@ -118,7 +118,7 @@ class MultiObjectDatasetGenerator {
     image_file_fmt_ = boost::format(image_fp.string());
     segm_file_fmt_ = boost::format(segm_fp.string());
 
-    viewer_.setBackgroundColor(0, 0, 0);
+    viewer_.setBackgroundColor(0, 0, 0, 0);
     renderer_->setDisplayAxis(false);
     renderer_->setDisplayGrid(false);
 

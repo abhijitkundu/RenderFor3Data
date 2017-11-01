@@ -76,7 +76,7 @@ class MultiObjectDatasetGenerator {
         rnd_eng_ {42},
         K_(Eigen::Matrix3d::Identity()) {
 
-    viewer_.setBackgroundColor(0, 0, 0);
+    viewer_.setBackgroundColor(0, 0, 0, 0);
     renderer_->setDisplayAxis(false);
 
     //  const int W = 960;
