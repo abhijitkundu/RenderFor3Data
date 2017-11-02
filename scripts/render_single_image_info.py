@@ -25,7 +25,7 @@ def setup_blender_engine_lights(scene):
     # bpy.context.space_data.context = 'WORLD'
     # light_environment_energy_range = [0.08, 1]
     scene.world.light_settings.use_environment_light = True
-    scene.world.light_settings.environment_energy = np.random.uniform(0.08, 1.0)
+    scene.world.light_settings.environment_energy = np.random.uniform(0.06, 1.0)
     scene.world.light_settings.environment_color = 'PLAIN'
 
     light_num_range = [5, 10]
@@ -36,7 +36,7 @@ def setup_blender_engine_lights(scene):
     # Add a random sun
     bpy.ops.object.lamp_add(type='SUN', view_align=False, rotation=np.random.uniform(-np.pi, np.pi, size=3))
     lamp = bpy.context.selected_objects[0]
-    lamp.data.energy = np.random.uniform(0.2, 1.5)
+    lamp.data.energy = np.random.uniform(0.1, 1.5)
 
     # set random point lights
     for _ in range(np.random.randint(light_num_range[0], light_num_range[1])):
@@ -48,7 +48,7 @@ def setup_blender_engine_lights(scene):
         lamp_location = (light_x, light_y, light_z)
         bpy.ops.object.lamp_add(type='POINT', view_align=False, location=lamp_location)
         lamp = bpy.context.selected_objects[0]
-        lamp.data.energy = np.random.uniform(0.1, 1.0)
+        lamp.data.energy = np.random.uniform(0.1, 0.8)
 
 
 def setup_cycles_engine_lights():
