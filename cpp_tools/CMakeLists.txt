@@ -8,6 +8,8 @@ set(_APPS
   generateMultiObjectRandomDataset
   visualizeKittiSyntheticViewpoints
   generateKittiSyntheticDataset
+  renderSingleImageInfo
+  visualizeSingleImageInfo
 )
 
 foreach(APP ${_APPS})

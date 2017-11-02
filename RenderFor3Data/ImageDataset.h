@@ -69,6 +69,9 @@ struct ImageInfo {
   boost::optional<ImageObjectInfos> object_infos;
 };
 
+ImageInfo loadImageInfoFromJson(const std::string& filepath);
+void saveImageInfoToJson(const ImageInfo& image_info, const std::string& filepath);
+
 
 struct ImageDataset {
   std::string name;

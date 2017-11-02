@@ -243,4 +243,25 @@ std::ostream& operator<<(std::ostream& os, const boost::optional<T>& opt) {
   return os;
 }
 
+ImageInfo loadImageInfoFromJson(const std::string& filepath) {
+  nlohmann::json image_info_json;
+  {
+    std::ifstream file(filepath.c_str());
+    if (!file.is_open()) {
+      throw std::runtime_error("Cannot open File from " + filepath);
+    }
+    file >> image_info_json;
+  }
+  return image_info_json;
+}
 
+void saveImageInfoToJson(const ImageInfo& image_info, const std::string& filepath) {
+  {
+    std::ofstream file(filepath.c_str());
+    if (!file.is_open()) {
+      throw std::runtime_error("Cannot open File from " + filepath);
+    }
+    file << nlohmann::json(image_info).dump(2) << "\n";
+    file.close();
+  }
+}
