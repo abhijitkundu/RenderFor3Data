@@ -16,7 +16,7 @@ def main():
     default_render_script = osp.join(root_dir, 'render_single_image_info.py')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--image_infos_files", nargs='+', type=str, help="Path to image_infos files")
+    parser.add_argument("-i", "--image_info_files", nargs='+', type=str, help="Path to image_info files")
     parser.add_argument("-g", "--gpus", nargs='+', default=[0], type=int, help="GPUs to use.")
     parser.add_argument("-t", "--num_of_threads", default=12, type=int, help="Number of parallel threads to use")
     parser.add_argument("-s", "--render_script", default=default_render_script, type=str, help="Path to render script")
@@ -33,9 +33,9 @@ def main():
 
     print("Rendering will use {} gpus = {}".format(num_of_gpus, args.gpus))
 
-    print('Generating rendering commands for {} images ...'.format(len(args.image_infos_files)))
+    print('Generating rendering commands for {} images ...'.format(len(args.image_info_files)))
     commands = []
-    for idx, image_info_file in enumerate(tqdm(args.image_infos_files)):
+    for idx, image_info_file in enumerate(tqdm(args.image_info_files)):
         assert osp.exists(image_info_file), "{} do not exist".format(image_info_file)
         assert osp.isfile(image_info_file), "{} is not a file".format(image_info_file)
         assert osp.splitext(image_info_file)[1] == '.json', "File {} is not avalid json file".format(image_info_file)
