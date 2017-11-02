@@ -23,29 +23,32 @@ def setup_blender_engine_lights(scene):
     """Set lighting for BLENDER_RENDER engine"""
     # set environment lighting
     # bpy.context.space_data.context = 'WORLD'
-    light_environment_energy_range = [0.08, 1]
+    # light_environment_energy_range = [0.08, 1]
     scene.world.light_settings.use_environment_light = True
-    scene.world.light_settings.environment_energy = np.random.uniform(light_environment_energy_range[0], light_environment_energy_range[1])
+    scene.world.light_settings.environment_energy = np.random.uniform(0.08, 1.0)
     scene.world.light_settings.environment_color = 'PLAIN'
 
-    light_num_range = [2, 7]
-    light_dist_range = [8, 20]
-    light_azimuth_range = np.radians([0.0, 360.0])
-    light_elevation_range = np.radians([0.0, 90.0])
-    light_energy_mean = 2
-    light_energy_std = 2
+    light_num_range = [5, 10]
+    light_x_range = [-10, 10]
+    light_y_range = [-2, 15]
+    light_z_range = [-10, 40]
 
-    # set point lights
+    # Add a random sun
+    bpy.ops.object.lamp_add(type='SUN', view_align=False, rotation=np.random.uniform(-np.pi, np.pi, size=3))
+    lamp = bpy.context.selected_objects[0]
+    lamp.data.energy = np.random.uniform(0.2, 1.5)
+
+    # set random point lights
     for _ in range(np.random.randint(light_num_range[0], light_num_range[1])):
-        light_azimuth = np.random.uniform(light_azimuth_range[0], light_azimuth_range[1])
-        light_elevation = np.random.uniform(light_elevation_range[0], light_elevation_range[1])
-        light_dist = np.random.uniform(light_dist_range[0], light_dist_range[1])
+        light_x = np.random.uniform(light_x_range[0], light_x_range[1])
+        light_y = np.random.uniform(light_y_range[0], light_y_range[1])
+        light_z = np.random.uniform(light_z_range[0], light_z_range[1])
 
         # Note that For shapenet I need to use -ve directions for obj files
-        lamp_location = spherical_to_cartesian(light_azimuth, light_elevation, light_dist)
-        bpy.ops.object.lamp_add(type='POINT', view_align=False, location=-lamp_location)
-        bpy.data.objects['Point'].data.energy = np.random.normal(light_energy_mean, light_energy_std)
-        # print('lamp_location = ', lamp_location)
+        lamp_location = (light_x, light_y, light_z)
+        bpy.ops.object.lamp_add(type='POINT', view_align=False, location=lamp_location)
+        lamp = bpy.context.selected_objects[0]
+        lamp.data.energy = np.random.uniform(0.1, 1.0)
 
 
 def setup_cycles_engine_lights():
@@ -61,7 +64,7 @@ def setup_cycles_engine_lights():
 
     for _ in range(np.random.randint(2, 5)):
         bpy.ops.object.lamp_add(type='SUN', view_align=False, rotation=np.random.uniform(-np.pi, np.pi, size=3))
-        # bpy.data.objects['SUN'].data.energy = 1.5
+        # bpy.data.lamps['SUN'].data.energy = 1.5
 
 
 def main():
