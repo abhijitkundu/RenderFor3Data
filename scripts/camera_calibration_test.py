@@ -10,6 +10,7 @@ from RenderFor3Data.blender_helper import (
     get_camera_extrinsic_from_blender,
     project_by_object_utils,
     set_blender_camera_from_intrinsics,
+    set_blender_camera_extrinsic,
     print_blender_object_atrributes
 )
 
@@ -160,6 +161,23 @@ def main():
     print("----------------------------")
 
     pO = P * O
+    pO /= pO[2]
+    print("Projected by KRT :", pO)
+    print("proj by bpy_utils:", project_by_object_utils(cam, Vector(O[0:3])))
+
+    print("===============================================")
+    print("===============================================")
+    print("===============================================")
+
+    # Set camera extrinsic to Identity
+    set_blender_camera_extrinsic(cam, Matrix.Identity(3), Vector.Fill(3, 0.0))
+    RT = get_camera_extrinsic_from_blender(cam)
+    print(RT)
+    print(cam.matrix_world)
+    O = Vector((0, 0, 10, 1))
+
+    pO = K * RT * O
+    print (RT * O)
     pO /= pO[2]
     print("Projected by KRT :", pO)
     print("proj by bpy_utils:", project_by_object_utils(cam, Vector(O[0:3])))

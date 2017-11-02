@@ -44,8 +44,11 @@ def get_camera_intrinsic_from_blender(cam):
     # Parameters of intrinsic calibration matrix K
     alpha_u = f_in_mm * s_u
     alpha_v = f_in_mm * s_v
-    u_0 = W / 2 + camd.shift_x * W
-    v_0 = H / 2 - camd.shift_y * W
+
+    maxdim = max(W, H)
+
+    u_0 = W / 2 - camd.shift_x * maxdim
+    v_0 = H / 2 + camd.shift_y * maxdim
     skew = 0  # only use rectangular pixels
 
     K = Matrix(((alpha_u, skew, u_0),
@@ -53,6 +56,42 @@ def get_camera_intrinsic_from_blender(cam):
                 (0,          0,   1)))
     return K
 
+
+def set_blender_camera_from_intrinsics(cam, K):
+    """Set blender camera from intrinsic matrix K"""
+    camd = cam.data
+    assert (camd.lens_unit != 'FOV')
+    scene = bpy.context.scene
+    scale = scene.render.resolution_percentage / 100
+    W = (scene.render.resolution_x * scale)
+    H = (scene.render.resolution_y * scale)
+
+    fx = float(K[0][0])
+    fy = float(K[1][1])
+    cx = float(K[0][2])
+    cy = float(K[1][2])
+
+    maxdim = max(W, H)
+
+    camd.shift_x = (W / 2 - cx) / maxdim
+    camd.shift_y = (cy - H / 2) / maxdim  # (TODO may be this depends on camd.sensor_fit)
+
+    f_in_mm = camd.lens
+    sensor_scale_x = fx / f_in_mm
+    sensor_scale_y = fy / f_in_mm
+
+    pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+
+    if camd.sensor_fit == 'VERTICAL':
+        # the sensor height is fixed (sensor fit is horizontal),
+        # the sensor width is effectively changed with the pixel aspect ratio
+        camd.sensor_height = H / sensor_scale_y
+        camd.sensor_width = W / sensor_scale_x / pixel_aspect_ratio
+    else:  # 'HORIZONTAL' and 'AUTO'
+        # the sensor width is fixed (sensor fit is horizontal),
+        # the sensor height is effectively changed with the pixel aspect ratio
+        camd.sensor_width = W / sensor_scale_x
+        camd.sensor_height = H * pixel_aspect_ratio / sensor_scale_y
 
 def get_camera_extrinsic_from_blender(cam):
     """
@@ -130,44 +169,6 @@ def project_by_object_utils(cam, point):
         int(scene.render.resolution_y * render_scale),
     )
     return Vector((co_2d.x * render_size[0], render_size[1] - co_2d.y * render_size[1]))
-
-
-def set_blender_camera_from_intrinsics(cam, K):
-    """Set blender camera from intrinsic matrix K"""
-    camd = cam.data
-    assert (camd.lens_unit != 'FOV')
-    scene = bpy.context.scene
-    scale = scene.render.resolution_percentage / 100
-    W = (scene.render.resolution_x * scale)
-    H = (scene.render.resolution_y * scale)
-
-    fx = float(K[0][0])
-    fy = float(K[1][1])
-    cx = float(K[0][2])
-    cy = float(K[1][2])
-
-    maxdim = max(W, H)
-
-    camd.shift_x = (cx - W / 2) / maxdim
-    camd.shift_y = ((H - cy) - H / 2) / maxdim  # (TODO may be this depends on camd.sensor_fit)
-
-    f_in_mm = camd.lens
-    sensor_scale_x = fx / f_in_mm
-    sensor_scale_y = fy / f_in_mm
-
-    pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
-
-    if camd.sensor_fit == 'VERTICAL':
-        # the sensor height is fixed (sensor fit is horizontal),
-        # the sensor width is effectively changed with the pixel aspect ratio
-        camd.sensor_height = H / sensor_scale_y
-        camd.sensor_width = W / sensor_scale_x / pixel_aspect_ratio
-    else:  # 'HORIZONTAL' and 'AUTO'
-        # the sensor width is fixed (sensor fit is horizontal),
-        # the sensor height is effectively changed with the pixel aspect ratio
-        camd.sensor_width = W / sensor_scale_x
-        camd.sensor_height = H * pixel_aspect_ratio / sensor_scale_y
-
 
 def wrap_to_pi(radians):
     """Wrap an angle (in radians) to [-pi, pi)"""
