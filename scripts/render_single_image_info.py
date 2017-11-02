@@ -48,7 +48,7 @@ def setup_blender_engine_lights(scene):
         lamp_location = (light_x, light_y, light_z)
         bpy.ops.object.lamp_add(type='POINT', view_align=False, location=lamp_location)
         lamp = bpy.context.selected_objects[0]
-        lamp.data.energy = np.random.uniform(0.1, 0.8)
+        lamp.data.energy = np.random.uniform(0.1, 0.9)
 
 
 def setup_cycles_engine_lights():
