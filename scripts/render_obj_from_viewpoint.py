@@ -54,7 +54,7 @@ def main():
     scene.render.resolution_percentage = 100
 
     # scene.render.image_settings.file_format = 'PNG'
-    scene.render.filepath = osp.splitext(args.obj_file)[0] + '.png'
+    scene.render.filepath = osp.splitext(args.obj_file)[0] + '_thumbnail.png'
     bpy.ops.render.render(write_still=True)
     print('Saved rendered scene at {}'.format(scene.render.filepath))
 
