@@ -19,7 +19,6 @@ def main():
 
     print("Starting to work on {}".format(args.obj_file))
     assert osp.exists(args.obj_file)
-    model_name = osp.splitext(osp.basename(args.obj_file))[0]
 
     # Setup Scene
     scene = bpy.data.scenes['Scene']
@@ -55,7 +54,7 @@ def main():
     scene.render.resolution_percentage = 100
 
     # scene.render.image_settings.file_format = 'PNG'
-    scene.render.filepath = model_name + '.png'
+    scene.render.filepath = osp.splitext(args.obj_file)[0] + '.png'
     bpy.ops.render.render(write_still=True)
     print('Saved rendered scene at {}'.format(scene.render.filepath))
 
