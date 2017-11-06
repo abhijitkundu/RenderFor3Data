@@ -79,14 +79,6 @@ int main(int argc, char **argv) {
   renderer->phongShader().program.release();
 
   fs::path root_dir(RENDERFOR3DATA_ROOT_DIR "/data");
-
-  {
-    MeshData legacy_mesh = loadMeshFromPLY(CUTEGL_ASSETS_FOLDER "/Axis_bin.ply");
-    Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
-    pose.translate(Vector3d(0.0, 0.0, 5.0));
-    renderer->modelDrawers().addItem(pose.cast<float>(), legacy_mesh);
-  }
-
   const auto& object_infos = img_info.object_infos.value();
 
   for (std::size_t  i = 0; i < object_infos.size(); ++i) {
