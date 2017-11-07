@@ -361,10 +361,6 @@ def main():
     log_message("nb_frames: %f" % idx_info['nb_frames'])
     log_message("use_split: %s" % idx_info['use_split'])
 
-    tmp_path = '/home/abhijit/Scratchspace/SURREAL/tmp/run0'
-    output_path = '/home/abhijit/Scratchspace/SURREAL/out'  # output folder
-    bg_path = '/media/Scratchspace/BackGroundImages/'
-
     smpl_data_folder = '/home/abhijit/Scratchspace/SURREAL/smpl_data'
     smpl_data_filename = 'smpl_data.npz'
     clothing_option = 'all'  # grey, nongrey or all
@@ -382,32 +378,12 @@ def main():
 
     assert(ishape < nb_ishape)
 
-    # name is set given idx
-    name = idx_info['name']
-    output_path = join(output_path, 'run%d' % runpass, name.replace(" ", ""))
-    tmp_path = join(tmp_path, 'run%d_%s_c%04d' % (runpass, name.replace(" ", ""), (ishape + 1)))
-
-    log_message("output_path: %s" % output_path)
-    log_message("tmp_path: %s" % tmp_path)
-
-    # create tmp directory
-    if not exists(tmp_path):
-        mkdir_safe(tmp_path)
-
     # >> don't use random generator before this point <<
 
     genders = {0: 'female', 1: 'male'}
     # pick random gender
     gender = choice(genders)
     log_message("Gender = %s" % gender)
-
-    log_message("Listing background images")
-    bg_names = join(bg_path, '%s_img.txt' % idx_info['use_split'])
-    nh_txt_paths = []
-    with open(bg_names) as f:
-        for line in f:
-            nh_txt_paths.append(join(bg_path, line))
-    log_message("Found %d background images" % len(nh_txt_paths))
 
     # grab clothing names
     with open(join(smpl_data_folder, 'textures', '%s_%s.txt' % (gender, idx_info['use_split']))) as f:
@@ -433,10 +409,7 @@ def main():
     log_message("Setup Blender")
 
     # create copy-spher.harm. directory if not exists
-    sh_dir = join(tmp_path, 'spher_harm')
-    if not exists(sh_dir):
-        mkdir_safe(sh_dir)
-    sh_dst = join(sh_dir, 'sh_%02d_%05d.osl' % (runpass, idx))
+    sh_dst = realpath('sh.osl')
     copyfile(join(smpl_data_folder, 'spher_harm.osl'), sh_dst)
 
     # Setup Scene
@@ -451,14 +424,9 @@ def main():
     cloth_img_name = join(smpl_data_folder, cloth_img_name)
     cloth_img = bpy.data.images.load(cloth_img_name)
 
-    # random background
-    bg_img_name = choice(nh_txt_paths)[:-1]
-    bg_img = bpy.data.images.load(bg_img_name)
-
     log_message("Building materials tree")
     mat_tree = bpy.data.materials['Material'].node_tree
     create_sh_material(mat_tree, sh_dst, cloth_img)
-    # res_paths = create_composite_nodes(scene.node_tree, output_types, tmp_path, img=None)
 
     log_message("Initializing scene")
 
@@ -522,39 +490,24 @@ def main():
     #shape = np.array([ 3.63453289,  1.20836171,  3.15674431, -0.78646793, -1.93847355, -0.32129994, -0.97771656,  0.94531640,  0.52825811, -0.99324327]) #tall
 
     ndofs = 10
-
     scene.objects.active = arm_ob
     orig_trans = np.asarray(arm_ob.pose.bones[obname + '_Pelvis'].location).copy()
 
-    # create output directory
-    if not exists(output_path):
-        mkdir_safe(output_path)
-
     # spherical harmonics material needs a script to be loaded and compiled
     scs = []
-    for mname, material in materials.items():
+    for _, material in materials.items():
         scs.append(material.node_tree.nodes['Script'])
         scs[-1].filepath = sh_dst
         scs[-1].update()
 
-    rgb_dirname = name.replace(" ", "") + '_c%04d.mp4' % (ishape + 1)
-    rgb_path = join(tmp_path, rgb_dirname)
-
     data = cmu_parms[name]
-
-    fbegin = ishape * stepsize * stride
-    fend = min(ishape * stepsize * stride + stepsize * clipsize, len(data['poses']))
-
-    log_message("Computing how many frames to allocate")
-    N = len(data['poses'][fbegin:fend:stepsize])
-    log_message("Allocating %d frames in mat file" % N)
 
     arm_ob.animation_data_clear()
     cam_ob.animation_data_clear()
 
     # scene.node_tree.nodes['Image'].image = bg_img
 
-    for part, material in materials.items():
+    for _, material in materials.items():
         material.node_tree.nodes['Vector Math'].inputs[1].default_value[:2] = (0, 0)
 
     # random light
