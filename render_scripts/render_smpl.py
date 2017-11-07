@@ -71,91 +71,6 @@ def create_segmentation(ob):
         bpy.ops.object.mode_set(mode='OBJECT')
     return(materials)
 
-# create the different passes that we render
-
-
-def create_composite_nodes(tree, output_types, tmp_path, img=None, idx=0):
-    res_paths = {k: join(tmp_path, '%05d_%s' % (idx, k)) for k in output_types if output_types[k]}
-
-    # clear default nodes
-    for n in tree.nodes:
-        tree.nodes.remove(n)
-
-    # create node for foreground image
-    layers = tree.nodes.new('CompositorNodeRLayers')
-    layers.location = -300, 400
-
-    # create node for background image
-    bg_im = tree.nodes.new('CompositorNodeImage')
-    bg_im.location = -300, 30
-    if img is not None:
-        bg_im.image = img
-
-    # create node for mixing foreground and background images
-    mix = tree.nodes.new('CompositorNodeMixRGB')
-    mix.location = 40, 30
-    mix.use_alpha = True
-
-    # create node for the final output
-    composite_out = tree.nodes.new('CompositorNodeComposite')
-    composite_out.location = 240, 30
-
-    # create node for saving depth
-    if(output_types['depth']):
-        depth_out = tree.nodes.new('CompositorNodeOutputFile')
-        depth_out.location = 40, 700
-        depth_out.format.file_format = 'OPEN_EXR'
-        depth_out.base_path = res_paths['depth']
-
-    # create node for saving normals
-    if(output_types['normal']):
-        normal_out = tree.nodes.new('CompositorNodeOutputFile')
-        normal_out.location = 40, 600
-        normal_out.format.file_format = 'OPEN_EXR'
-        normal_out.base_path = res_paths['normal']
-
-    # create node for saving foreground image
-    if(output_types['fg']):
-        fg_out = tree.nodes.new('CompositorNodeOutputFile')
-        fg_out.location = 170, 600
-        fg_out.format.file_format = 'PNG'
-        fg_out.base_path = res_paths['fg']
-
-    # create node for saving ground truth flow
-    if(output_types['gtflow']):
-        gtflow_out = tree.nodes.new('CompositorNodeOutputFile')
-        gtflow_out.location = 40, 500
-        gtflow_out.format.file_format = 'OPEN_EXR'
-        gtflow_out.base_path = res_paths['gtflow']
-
-    # create node for saving segmentation
-    if(output_types['segm']):
-        segm_out = tree.nodes.new('CompositorNodeOutputFile')
-        segm_out.location = 40, 400
-        segm_out.format.file_format = 'OPEN_EXR'
-        segm_out.base_path = res_paths['segm']
-
-    # merge fg and bg images
-    tree.links.new(bg_im.outputs[0], mix.inputs[1])
-    tree.links.new(layers.outputs['Image'], mix.inputs[2])
-
-    tree.links.new(mix.outputs[0], composite_out.inputs[0])            # bg+fg image
-    if(output_types['fg']):
-        tree.links.new(layers.outputs['Image'], fg_out.inputs[0])      # save fg
-    if(output_types['depth']):
-        tree.links.new(layers.outputs['Z'], depth_out.inputs[0])       # save depth
-    if(output_types['normal']):
-        tree.links.new(layers.outputs['Normal'], normal_out.inputs[0])  # save normal
-    if(output_types['gtflow']):
-        tree.links.new(layers.outputs['Speed'], gtflow_out.inputs[0])  # save ground truth flow
-    if(output_types['segm']):
-        tree.links.new(layers.outputs['IndexMA'], segm_out.inputs[0])  # save segmentation
-
-    return(res_paths)
-
-# creation of the spherical harmonics material, using an OSL script
-
-
 def create_sh_material(tree, sh_path, img=None):
     # clear default nodes
     for n in tree.nodes:
@@ -451,7 +366,7 @@ def main():
     bg_path = '/media/Scratchspace/BackGroundImages/'
     openexr_py2_path = "/sequoia/data1/gvarol/tools/OpenEXR/OpenEXR-1.2.0/build/lib.linux-x86_64-2.7"
 
-    output_types = {'depth': False, 'fg': True, 'gtflow': False, 'normal': False, 'segm': True, 'vblur': False}
+    output_types = {'depth': False, 'fg': True, 'gtflow': False, 'normal': False, 'segm': True}
 
     smpl_data_folder = '/home/abhijit/Scratchspace/SURREAL/smpl_data'
     smpl_data_filename = 'smpl_data.npz'
@@ -537,10 +452,6 @@ def main():
 
     log_message("Setup Blender")
 
-    if(output_types['vblur']):
-        vblur_factor = np.random.normal(0.5, 0.5)
-        params['vblur_factor'] = vblur_factor
-
     # create copy-spher.harm. directory if not exists
     sh_dir = join(tmp_path, 'spher_harm')
     if not exists(sh_dir):
@@ -567,7 +478,7 @@ def main():
     log_message("Building materials tree")
     mat_tree = bpy.data.materials['Material'].node_tree
     create_sh_material(mat_tree, sh_dst, cloth_img)
-    res_paths = create_composite_nodes(scene.node_tree, output_types, tmp_path, img=bg_img, idx=idx)
+    # res_paths = create_composite_nodes(scene.node_tree, output_types, tmp_path, img=None)
 
     log_message("Initializing scene")
 
@@ -661,7 +572,7 @@ def main():
     arm_ob.animation_data_clear()
     cam_ob.animation_data_clear()
 
-    scene.node_tree.nodes['Image'].image = bg_img
+    # scene.node_tree.nodes['Image'].image = bg_img
 
     for part, material in materials.items():
         material.node_tree.nodes['Vector Math'].inputs[1].default_value[:2] = (0, 0)
@@ -676,6 +587,10 @@ def main():
             sc.inputs[ish + 1].default_value = coeff
 
     bpy.ops.wm.save_as_mainfile(filepath='old.blend')
+
+    # Render
+    scene.render.filepath = 'old.png'
+    bpy.ops.render.render(write_still=True)
 
 
 if __name__ == '__main__':
