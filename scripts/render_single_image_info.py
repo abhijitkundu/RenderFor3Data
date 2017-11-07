@@ -81,6 +81,8 @@ def main():
     parser.add_argument('-d', '--dataset_rootdir', type=str, default=default_dataset_rootdir, help='Dataset root dir')
     parser.add_argument('-r', '--render_engine', default='CYCLES', choices=render_engine_choices, help='Render engine')
     parser.add_argument('-g', '--gpu', type=int, help='GPU device number')
+    parser.add_argument('--save_blend', dest='save_blend', action='store_true')
+    parser.set_defaults(dryrun=False)
 
     args = parser.parse_args(argv)
     image_info_file = args.image_info_file[0]
@@ -182,11 +184,13 @@ def main():
 
         model.matrix_world = Matrix.Translation(t) * R.to_4x4() * mat_sca * model.matrix_world
 
-    # # For debufgging save a blend file (Make sure to disable this when not debugging)
-    # bpy.ops.wm.save_as_mainfile(filepath='test.blend')
+    image_name = osp.splitext(osp.basename(image_info['image_file']))[0]
+
+    if args.save_blend:
+        bpy.ops.wm.save_as_mainfile(filepath=image_name + '.blend')
 
     # scene.render.image_settings.file_format = 'PNG'
-    scene.render.filepath = osp.basename(image_info['image_file'])
+    scene.render.filepath = image_name + '.png'
     bpy.ops.render.render(write_still=True)
 
 
