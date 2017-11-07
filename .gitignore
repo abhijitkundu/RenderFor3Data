@@ -12,6 +12,7 @@ logs/
 # Ignore some dataset_directories
 data/CityShapes
 data/view_distribution
+data/smpl_data
 data/FlyingCars*
 data/SyntheticKITTI*
 
