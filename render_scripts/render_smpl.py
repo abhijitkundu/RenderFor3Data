@@ -127,9 +127,9 @@ def init_scene(scene, camera_params, fbx_file):
     # load fbx model
     bpy.ops.import_scene.fbx(filepath=fbx_file, axis_forward='Y', axis_up='Z', global_scale=100)
 
-    obname = bpy.data.objects[4].name
+    arm_ob = bpy.context.active_object
+    obname = arm_ob.children[0].name
     assert '_avg' in obname
-
     ob = bpy.data.objects[obname]
     ob.data.use_auto_smooth = False  # autosmooth creates artifacts
 
@@ -364,9 +364,6 @@ def main():
     tmp_path = '/home/abhijit/Scratchspace/SURREAL/tmp/run0'
     output_path = '/home/abhijit/Scratchspace/SURREAL/out'  # output folder
     bg_path = '/media/Scratchspace/BackGroundImages/'
-    openexr_py2_path = "/sequoia/data1/gvarol/tools/OpenEXR/OpenEXR-1.2.0/build/lib.linux-x86_64-2.7"
-
-    output_types = {'depth': False, 'fg': True, 'gtflow': False, 'normal': False, 'segm': True}
 
     smpl_data_folder = '/home/abhijit/Scratchspace/SURREAL/smpl_data'
     smpl_data_filename = 'smpl_data.npz'
@@ -393,28 +390,11 @@ def main():
     log_message("output_path: %s" % output_path)
     log_message("tmp_path: %s" % tmp_path)
 
-    # check if already computed
-    #  + clean up existing tmp folders if any
-    if exists(tmp_path) and tmp_path != "" and tmp_path != "/":
-        os.system('rm -rf %s' % tmp_path)
-    rgb_vid_filename = "%s_c%04d.mp4" % (join(output_path, name.replace(' ', '')), (ishape + 1))
-    #if os.path.isfile(rgb_vid_filename):
-    #    log_message("ALREADY COMPUTED - existing: %s" % rgb_vid_filename)
-    #    return 0
-
     # create tmp directory
     if not exists(tmp_path):
         mkdir_safe(tmp_path)
 
     # >> don't use random generator before this point <<
-
-    # initialize RNG with seeds from sequence id
-    import hashlib
-    s = "synth_data:%d:%d:%d" % (idx, runpass, ishape)
-    seed_number = int(hashlib.sha1(s.encode('utf-8')).hexdigest(), 16) % (10 ** 8)
-    log_message("GENERATED SEED %d from string '%s'" % (seed_number, s))
-    random.seed(seed_number)
-    np.random.seed(seed_number)
 
     genders = {0: 'female', 1: 'male'}
     # pick random gender
