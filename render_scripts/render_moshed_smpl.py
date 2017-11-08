@@ -2,15 +2,15 @@ import os.path as osp
 from pickle import load
 from shutil import copyfile
 import numpy as np
-from random import choice
+from random import choice, randint
 import bpy
 from mathutils import Matrix, Vector, Quaternion, Euler
-from RenderFor3Data.smpl_helper import SMPLBody, create_body_segmentation, create_shader_material
+from RenderFor3Data.smpl_helper import SMPLBody, create_shader_material, load_body_data
 from RenderFor3Data.blender_helper import (deselect_all_objects,
                                            get_camera_intrinsic_from_blender,
                                            set_blender_camera_extrinsic,
                                            set_blender_camera_from_intrinsics,
-                                           spherical_to_cartesian,
+                                           rotation_from_viewpoint,
                                            print_blender_object_atrributes)
 
 
@@ -70,6 +70,7 @@ def set_blender_camera(scene, cam):
     # Set camera extrinsic to Identity
     set_blender_camera_extrinsic(cam, Matrix.Identity(3), Vector.Fill(3, 0.0))
 
+
 def main():
     """Main Function"""
     smpl_data_dir = osp.abspath(osp.join(osp.dirname(__file__), '..', 'data', 'smpl_data'))
@@ -102,9 +103,6 @@ def main():
         beta_stds = np.load(osp.join(smpl_data_dir, ('%s_beta_stds.npy' % gender)))
         shape_param_dist[gender] = beta_stds
 
-    gender = choice(genders)
-    print(shape_param_dist[gender].shape)
-
     print("Loading smpl data")
     smpl_data = np.load(osp.join(smpl_data_dir, 'smpl_data.npz'))
     print("# of smpl_data.files = {}".format(len(smpl_data.files)))
@@ -117,6 +115,25 @@ def main():
     sh_script = osp.realpath(image_name + '.osl')
     copyfile(osp.join(smpl_data_dir, 'spher_harm.osl'), sh_script)
 
+    gender = choice(genders)
+    print(shape_param_dist[gender].shape)
+
+    num_of_mocap_seqs = sum(1 for seq in smpl_data.files if seq.startswith('pose_'))
+    print("num_of_mocap_seqs=", num_of_mocap_seqs)
+
+    mocap_seqid = randint(0, num_of_mocap_seqs - 1)
+    print("loading body data from seq {}".format(mocap_seqid))
+    cmu_params, fshapes, _ = load_body_data(smpl_data, idx=mocap_seqid, gender=gender, num_of_shape_params=10)
+
+    assert 'poses' in cmu_params
+    assert 'trans' in cmu_params
+    assert cmu_params['poses'].shape[1] == 72
+    assert cmu_params['trans'].shape[1] == 3
+
+    print(cmu_params['poses'].shape)
+    print(cmu_params['trans'].shape)
+    print(fshapes.shape)
+
     # Setup Scene
     scene = bpy.data.scenes['Scene']
     setup_scene(scene)
@@ -124,6 +141,7 @@ def main():
     cam = bpy.data.objects['Camera']
     set_blender_camera(scene, cam)
     K = get_camera_intrinsic_from_blender(cam)
+    Kinv = K.inverted()
     print("K=\n", K)
 
     obj_id = 0
@@ -145,6 +163,38 @@ def main():
 
     # TODO Check if this is required
     # mesh_ob.active_material = material
+
+    shape = choice(fshapes)
+    # shape = np.zeros(10)
+    print("shape=", shape)
+
+    # reset_joint_positions with shape
+    scene.objects.active = smpl_body.arm_ob
+    smpl_body.reset_joint_positions(shape, scene, smpl_data['regression_verts'], smpl_data['joint_regressor'])
+
+    # Put Pelvis at origin
+    smpl_body.bone('root').location = - smpl_body.bone('Pelvis').head
+
+    pose = choice(cmu_params['poses'])
+    pose[0] = 0
+    pose[1] = np.pi / 2
+    pose[2] = 0
+    smpl_body.apply_pose_shape(pose, shape)
+    scene.update()
+
+    print("PelvisHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('Pelvis').head)
+    print("rootHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('root').head)
+
+    # rotation by viewwpoint
+    R = rotation_from_viewpoint((0., 0., 0.))
+    t = Vector((0., 0., 10.0))
+
+    smpl_body.arm_ob.matrix_world = Matrix.Translation(t) * R.to_4x4() * smpl_body.arm_ob.matrix_world
+
+    scene.update()
+
+    print("PelvisHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('Pelvis').head)
+    print("rootHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('root').head)
 
     # spherical harmonics material needs a script to be loaded and compiled
     spherical_harmonics = []

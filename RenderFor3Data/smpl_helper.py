@@ -2,9 +2,12 @@
 SMPL Rendering helper
 '''
 
-import bpy
 import os.path as osp
-from mathutils import Matrix, Vector, Quaternion, Euler
+import numpy as np
+
+import bpy
+from mathutils import Euler, Matrix, Quaternion, Vector
+
 from .blender_helper import deselect_all_objects
 
 
@@ -14,6 +17,15 @@ class SMPLBody(object):
     """
     arm_ob = None
     mesh_ob = None
+    mesh_prefix = None
+
+    # order
+    part_match = {'root': 'root', 'bone_00': 'Pelvis', 'bone_01': 'L_Hip', 'bone_02': 'R_Hip',
+                  'bone_03': 'Spine1', 'bone_04': 'L_Knee', 'bone_05': 'R_Knee', 'bone_06': 'Spine2',
+                  'bone_07': 'L_Ankle', 'bone_08': 'R_Ankle', 'bone_09': 'Spine3', 'bone_10': 'L_Foot',
+                  'bone_11': 'R_Foot', 'bone_12': 'Neck', 'bone_13': 'L_Collar', 'bone_14': 'R_Collar',
+                  'bone_15': 'Head', 'bone_16': 'L_Shoulder', 'bone_17': 'R_Shoulder', 'bone_18': 'L_Elbow',
+                  'bone_19': 'R_Elbow', 'bone_20': 'L_Wrist', 'bone_21': 'R_Wrist', 'bone_22': 'L_Hand', 'bone_23': 'R_Hand'}
 
     def __init__(self, fbx_file, material, obj_idx=0, vertex_segm=None):
         """
@@ -25,7 +37,8 @@ class SMPLBody(object):
         self.arm_ob = bpy.context.active_object
         self.mesh_ob = self.arm_ob.children[0]
 
-        assert '_avg' in self.mesh_ob.name
+        self.mesh_prefix = self.mesh_ob.name + '_'
+        assert self.mesh_prefix == 'm_avg_' or self.mesh_prefix == 'f_avg_'
 
         self.arm_ob.name = 'Person{:02d}'.format(obj_idx)
         self.mesh_ob.name = 'Person{:02d}_mesh'.format(obj_idx)
@@ -66,6 +79,97 @@ class SMPLBody(object):
 
         # TODO Check if we need to do this
         # mesh_ob.active_material = material
+
+    def bone(self, bone_type='Pelvis'):
+        """returns a particluar bone"""
+        if isinstance(bone_type, str):
+            return self.arm_ob.pose.bones[self.mesh_prefix + bone_type]
+        elif isinstance(bone_type, int):
+            return self.arm_ob.pose.bones[self.mesh_prefix + self.part_match['bone_%02d' % bone_type]]
+        else:
+            raise TypeError
+
+    def num_of_shape_params(self):
+        """num of blend shapes"""
+        return len([k for k in self.mesh_ob.data.shape_keys.key_blocks.keys() if k.startswith('Shape')])
+
+    def apply_pose_shape(self, pose, shape, frame=None):
+        """
+        apply trans pose and shape to character
+        transform pose into rotation matrices (for pose) and pose blendshapes
+        """
+        mrots, bsh = rodrigues2bshapes(pose)
+
+        # set the pose of each bone to the quaternion specified by pose
+        for ibone, mrot in enumerate(mrots):
+            bone = self.bone(ibone)
+            bone.rotation_quaternion = Matrix(mrot).to_quaternion()
+            if frame is not None:
+                bone.keyframe_insert('rotation_quaternion', frame=frame)
+                bone.keyframe_insert('location', frame=frame)
+
+        # apply pose blendshapes
+        for ibshape, bshape in enumerate(bsh):
+            self.mesh_ob.data.shape_keys.key_blocks['Pose%03d' % ibshape].value = bshape
+            if frame is not None:
+                self.mesh_ob.data.shape_keys.key_blocks['Pose%03d' % ibshape].keyframe_insert('value', index=-1, frame=frame)
+
+        # apply shape blendshapes
+        for ibshape, shape_elem in enumerate(shape):
+            self.mesh_ob.data.shape_keys.key_blocks['Shape%03d' % ibshape].value = shape_elem
+            if frame is not None:
+                self.mesh_ob.data.shape_keys.key_blocks['Shape%03d' % ibshape].keyframe_insert('value', index=-1, frame=frame)
+
+    def reset_joint_positions(self, shape, scene, reg_ivs, joint_reg):
+        """reset the joint positions of the character according to its new shape"""
+        # since the regression is sparse, only the relevant vertex
+        #     elements (joint_reg) and their indices (reg_ivs) are loaded
+        reg_vs = np.empty((len(reg_ivs), 3))  # empty array to hold vertices to regress from
+        # zero the pose and trans to obtain joint positions in zero pose
+        self.apply_pose_shape(np.zeros(72), shape)
+
+        # obtain a mesh after applying modifiers
+        # bpy.ops.wm.memory_statistics()
+        # me holds the vertices after applying the shape blendshapes
+        me = self.mesh_ob.to_mesh(scene, True, 'PREVIEW')
+
+        # fill the regressor vertices matrix
+        for iiv, iv in enumerate(reg_ivs):
+            reg_vs[iiv] = me.vertices[iv].co
+        bpy.data.meshes.remove(me)
+
+        # regress joint positions in rest pose
+        joint_xyz = joint_reg.dot(reg_vs)
+        # adapt joint positions in rest pose
+        self.arm_ob.hide = False
+        bpy.ops.object.mode_set(mode='EDIT')
+        self.arm_ob.hide = True
+        for ibone in range(24):
+            bb = self.arm_ob.data.edit_bones[self.mesh_prefix + self.part_match['bone_%02d' % ibone]]
+            bboffset = bb.tail - bb.head
+            bb.head = joint_xyz[ibone]
+            bb.tail = bb.head + bboffset
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+
+def Rodrigues(rotvec):
+    """computes rotation matrix through Rodrigues formula as in cv2.Rodrigues"""
+    theta = np.linalg.norm(rotvec)
+    r = (rotvec / theta).reshape(3, 1) if theta > 0. else rotvec
+    cost = np.cos(theta)
+    mat = np.asarray([[0, -r[2], r[1]],
+                      [r[2], 0, -r[0]],
+                      [-r[1], r[0], 0]])
+    return(cost * np.eye(3) + (1 - cost) * r.dot(r.T) + np.sin(theta) * mat)
+
+
+def rodrigues2bshapes(pose):
+    """transformation between pose and blendshapes"""
+    rod_rots = np.asarray(pose).reshape(24, 3)
+    mat_rots = [Rodrigues(rod_rot) for rod_rot in rod_rots]
+    bshapes = np.concatenate([(mat_rot - np.eye(3)).ravel()
+                              for mat_rot in mat_rots[1:]])
+    return(mat_rots, bshapes)
 
 
 def create_body_segmentation(vertex_segm, ob, material):
@@ -147,7 +251,7 @@ def create_shader_material(tree, sh_path, cloth_image_path):
     tree.links.new(emission.outputs[0], mat_out.inputs[0])
 
 
-def load_body_data(smpl_data, ob, gender='female', idx=0):
+def load_body_data(smpl_data, idx=0, gender='female', num_of_shape_params=10):
     """
     load MoSHed data from CMU Mocap (only the given idx is loaded)
     """
@@ -165,11 +269,7 @@ def load_body_data(smpl_data, ob, gender='female', idx=0):
             cmu_parms[seq.replace('pose_', '')] = {'poses': smpl_data[seq],
                                                    'trans': smpl_data[seq.replace('pose_', 'trans_')]}
 
-    # compute the number of shape blendshapes in the model
-    n_sh_bshapes = len([k for k in ob.data.shape_keys.key_blocks.keys()
-                        if k.startswith('Shape')])
-
     # load all SMPL shapes
-    fshapes = smpl_data['%sshapes' % gender][:, :n_sh_bshapes]
+    fshapes = smpl_data['%sshapes' % gender][:, :num_of_shape_params]
 
-    return(cmu_parms, fshapes, name)
+    return(cmu_parms[name], fshapes, name)
