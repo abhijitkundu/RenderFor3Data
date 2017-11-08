@@ -133,7 +133,7 @@ def main():
 
     smpl_bodies = []
 
-    num_of_persons = 1
+    num_of_persons = 10
     for obj_id in range(num_of_persons):
         gender = choice(genders)
         print(shape_param_dist[gender].shape)
@@ -199,7 +199,7 @@ def main():
        
         # Compute final object pose as R|t = R_delta * [R_vp| t_vp]
         R = Rdelta * Rvp
-        t = Rdelta * Vector((0., 0., 10.0))
+        t = Rdelta * Vector((0., 0., np.random.uniform(3.0, 30.0)))
 
         smpl_body.arm_ob.matrix_world = Matrix.Translation(t) * R.to_4x4() * smpl_body.arm_ob.matrix_world
         smpl_bodies.append(smpl_body)
