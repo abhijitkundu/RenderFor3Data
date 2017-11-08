@@ -82,7 +82,7 @@ def main():
     parser.add_argument('-r', '--render_engine', default='CYCLES', choices=render_engine_choices, help='Render engine')
     parser.add_argument('-g', '--gpu', type=int, help='GPU device number')
     parser.add_argument('--save_blend', dest='save_blend', action='store_true')
-    parser.set_defaults(dryrun=False)
+    parser.set_defaults(save_blend=False)
 
     args = parser.parse_args(argv)
     image_info_file = args.image_info_file[0]
