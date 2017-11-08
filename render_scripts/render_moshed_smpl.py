@@ -11,6 +11,7 @@ from RenderFor3Data.blender_helper import (deselect_all_objects,
                                            set_blender_camera_extrinsic,
                                            set_blender_camera_from_intrinsics,
                                            rotation_from_viewpoint,
+                                           rotation_from_two_vectors,
                                            print_blender_object_atrributes)
 
 
@@ -70,6 +71,8 @@ def set_blender_camera(scene, cam):
     # Set camera extrinsic to Identity
     set_blender_camera_extrinsic(cam, Matrix.Identity(3), Vector.Fill(3, 0.0))
 
+    return W, H, K
+
 
 def main():
     """Main Function"""
@@ -115,95 +118,100 @@ def main():
     sh_script = osp.realpath(image_name + '.osl')
     copyfile(osp.join(smpl_data_dir, 'spher_harm.osl'), sh_script)
 
-    gender = choice(genders)
-    print(shape_param_dist[gender].shape)
-
-    num_of_mocap_seqs = sum(1 for seq in smpl_data.files if seq.startswith('pose_'))
-    print("num_of_mocap_seqs=", num_of_mocap_seqs)
-
-    mocap_seqid = randint(0, num_of_mocap_seqs - 1)
-    print("loading body data from seq {}".format(mocap_seqid))
-    cmu_params, fshapes, _ = load_body_data(smpl_data, idx=mocap_seqid, gender=gender, num_of_shape_params=10)
-
-    assert 'poses' in cmu_params
-    assert 'trans' in cmu_params
-    assert cmu_params['poses'].shape[1] == 72
-    assert cmu_params['trans'].shape[1] == 3
-
-    print(cmu_params['poses'].shape)
-    print(cmu_params['trans'].shape)
-    print(fshapes.shape)
-
     # Setup Scene
     scene = bpy.data.scenes['Scene']
     setup_scene(scene)
 
     cam = bpy.data.objects['Camera']
-    set_blender_camera(scene, cam)
+    W, H, _ = set_blender_camera(scene, cam)
     K = get_camera_intrinsic_from_blender(cam)
     Kinv = K.inverted()
     print("K=\n", K)
 
-    obj_id = 0
+    num_of_mocap_seqs = sum(1 for seq in smpl_data.files if seq.startswith('pose_'))
+    print("num_of_mocap_seqs=", num_of_mocap_seqs)
 
-    # set up the material for the object
-    material = bpy.data.materials.new(name='Material{:02d}'.format(obj_id))
-    material.use_nodes = True
+    smpl_bodies = []
 
-    cloth_img_path = osp.join(smpl_data_dir, choice(texture_paths[gender]))
-    assert osp.exists(cloth_img_path), "{} does not exist".format(cloth_img_path)
-    create_shader_material(material.node_tree, sh_script, cloth_img_path)
+    num_of_persons = 1
+    for obj_id in range(num_of_persons):
+        gender = choice(genders)
+        print(shape_param_dist[gender].shape)
 
-    if gender == 'male':
-        fbx_file = osp.join(smpl_data_dir, 'basicModel_m_lbs_10_207_0_v1.0.2.fbx')
-    else:
-        fbx_file = osp.join(smpl_data_dir, 'basicModel_f_lbs_10_207_0_v1.0.2.fbx')
+        mocap_seqid = randint(0, num_of_mocap_seqs - 1)
+        print("loading body data from seq {}".format(mocap_seqid))
+        cmu_params, fshapes, _ = load_body_data(smpl_data, idx=mocap_seqid, gender=gender, num_of_shape_params=10)
 
-    smpl_body = SMPLBody(fbx_file, material, obj_id, vertex_segm=vsegm)
+        assert 'poses' in cmu_params
+        assert 'trans' in cmu_params
+        assert cmu_params['poses'].shape[1] == 72
+        assert cmu_params['trans'].shape[1] == 3
 
-    # TODO Check if this is required
-    # mesh_ob.active_material = material
+        print(cmu_params['poses'].shape)
+        print(cmu_params['trans'].shape)
+        print(fshapes.shape)
 
-    shape = choice(fshapes)
-    # shape = np.zeros(10)
-    print("shape=", shape)
+        # set up the material for the object
+        material = bpy.data.materials.new(name='Material{:02d}'.format(obj_id))
+        material.use_nodes = True
 
-    # reset_joint_positions with shape
-    scene.objects.active = smpl_body.arm_ob
-    smpl_body.reset_joint_positions(shape, scene, smpl_data['regression_verts'], smpl_data['joint_regressor'])
+        cloth_img_path = osp.join(smpl_data_dir, choice(texture_paths[gender]))
+        assert osp.exists(cloth_img_path), "{} does not exist".format(cloth_img_path)
+        create_shader_material(material.node_tree, sh_script, cloth_img_path)
 
-    # Put Pelvis at origin
-    smpl_body.bone('root').location = - smpl_body.bone('Pelvis').head
+        if gender == 'male':
+            fbx_file = osp.join(smpl_data_dir, 'basicModel_m_lbs_10_207_0_v1.0.2.fbx')
+        else:
+            fbx_file = osp.join(smpl_data_dir, 'basicModel_f_lbs_10_207_0_v1.0.2.fbx')
 
-    pose = choice(cmu_params['poses'])
-    pose[0] = 0
-    pose[1] = np.pi / 2
-    pose[2] = 0
-    smpl_body.apply_pose_shape(pose, shape)
-    scene.update()
+        smpl_body = SMPLBody(fbx_file, material, obj_id, vertex_segm=vsegm)
 
-    print("PelvisHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('Pelvis').head)
-    print("rootHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('root').head)
+        # TODO Check if this is required
+        # mesh_ob.active_material = material
 
-    # rotation by viewwpoint
-    R = rotation_from_viewpoint((0., 0., 0.))
-    t = Vector((0., 0., 10.0))
+        # Get random shape
+        shape = choice(fshapes)
 
-    smpl_body.arm_ob.matrix_world = Matrix.Translation(t) * R.to_4x4() * smpl_body.arm_ob.matrix_world
+        # reset_joint_positions with shape
+        scene.objects.active = smpl_body.arm_ob
+        smpl_body.reset_joint_positions(shape, scene, smpl_data['regression_verts'], smpl_data['joint_regressor'])
 
-    scene.update()
+        # Put Pelvis at origin
+        smpl_body.bone('root').location = - smpl_body.bone('Pelvis').head
 
-    print("PelvisHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('Pelvis').head)
-    print("rootHead=", smpl_body.arm_ob.matrix_world * smpl_body.bone('root').head)
+        pose = choice(cmu_params['poses'])
+        pose[0] = 0
+        pose[1] = np.pi / 2
+        pose[2] = 0
+        smpl_body.apply_pose_shape(pose, shape)
+        scene.update()
+
+        # rotation by viewwpoint
+        center_proj_ray = Kinv * Vector((np.random.uniform(5.0, W - 5.0), 
+                                         np.random.uniform(5.0, H - 5.0),
+                                        1.0))
+        # Rotation to account for object not along principal axes
+        Rdelta = rotation_from_two_vectors(Vector((0., 0., 1.)), center_proj_ray)
+
+        Rvp = rotation_from_viewpoint((np.random.uniform(-np.pi, np.pi), 
+                                       np.random.uniform(-np.pi / 6, np.pi / 6), 
+                                       np.random.uniform(-np.pi / 12, np.pi / 12)))
+       
+        # Compute final object pose as R|t = R_delta * [R_vp| t_vp]
+        R = Rdelta * Rvp
+        t = Rdelta * Vector((0., 0., 10.0))
+
+        smpl_body.arm_ob.matrix_world = Matrix.Translation(t) * R.to_4x4() * smpl_body.arm_ob.matrix_world
+        smpl_bodies.append(smpl_body)
 
     # spherical harmonics material needs a script to be loaded and compiled
     spherical_harmonics = []
-    for _, material in smpl_body.materials.items():
+    for _, material in smpl_bodies[0].materials.items():
         spherical_harmonics.append(material.node_tree.nodes['Script'])
         spherical_harmonics[-1].filepath = sh_script
         spherical_harmonics[-1].update()
 
-    for _, material in smpl_body.materials.items():
+    for _, material in smpl_bodies[0].materials.items():
         material.node_tree.nodes['Vector Math'].inputs[1].default_value[:2] = (0, 0)
 
     # set up random light
