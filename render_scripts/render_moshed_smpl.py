@@ -5,6 +5,7 @@ import numpy as np
 from random import choice
 import bpy
 from mathutils import Matrix, Vector, Quaternion, Euler
+from RenderFor3Data.smpl_helper import create_body_segmentation, create_shader_material
 from RenderFor3Data.blender_helper import (deselect_all_objects,
                                            get_camera_intrinsic_from_blender,
                                            set_blender_camera_extrinsic,
@@ -40,6 +41,9 @@ def setup_scene(scene):
     scene.render.layers['RenderLayer'].use_pass_material_index = True
 
     # OSL is supported only in CPU
+    scene.cycles.device = 'GPU'
+    cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
+    cycles_prefs.compute_device_type = "CUDA"
 
 
 def set_blender_camera(scene, cam):
@@ -56,6 +60,9 @@ def set_blender_camera(scene, cam):
 
     # Set K
     set_blender_camera_from_intrinsics(cam, K)
+
+    # Set camera extrinsic to Identity
+    set_blender_camera_extrinsic(cam, Matrix.Identity(3), Vector.Fill(3, 0.0))
 
 
 def add_person_to_scene(smpl_data_dir, gender, obj_idx):
@@ -86,86 +93,6 @@ def add_person_to_scene(smpl_data_dir, gender, obj_idx):
     arm_ob.animation_data_clear()
 
     return(mesh_ob, arm_ob)
-
-
-def create_shader_material(tree, sh_path, texture_img_path):
-    """
-    creation of the spherical harmonics material, using an OSL script
-    """
-    # clear default nodes
-    for n in tree.nodes:
-        tree.nodes.remove(n)
-
-    uv = tree.nodes.new('ShaderNodeTexCoord')
-    uv.location = -800, 400
-
-    uv_xform = tree.nodes.new('ShaderNodeVectorMath')
-    uv_xform.location = -600, 400
-    uv_xform.inputs[1].default_value = (0, 0, 1)
-    uv_xform.operation = 'AVERAGE'
-
-    cloth_img = bpy.data.images.load(texture_img_path)
-    assert cloth_img
-    uv_im = tree.nodes.new('ShaderNodeTexImage')
-    uv_im.location = -400, 400
-    uv_im.image = cloth_img
-
-    rgb = tree.nodes.new('ShaderNodeRGB')
-    rgb.location = -400, 200
-
-    script = tree.nodes.new('ShaderNodeScript')
-    script.location = -230, 400
-    script.mode = 'EXTERNAL'
-    script.filepath = sh_path  # 'spher_harm/sh.osl' #using the same file from multiple jobs causes white texture
-    script.update()
-
-    # the emission node makes it independent of the scene lighting
-    emission = tree.nodes.new('ShaderNodeEmission')
-    emission.location = -60, 400
-
-    mat_out = tree.nodes.new('ShaderNodeOutputMaterial')
-    mat_out.location = 110, 400
-
-    tree.links.new(uv.outputs[2], uv_im.inputs[0])
-    tree.links.new(uv_im.outputs[0], script.inputs[0])
-    tree.links.new(script.outputs[0], emission.inputs[0])
-    tree.links.new(emission.outputs[0], mat_out.inputs[0])
-
-def create_body_segmentation(ob, segm_per_v_overlap_file, material):
-    """
-    material is the input material map for different objects
-    """
-
-    # smpl body part information
-    sorted_parts = ['hips', 'leftUpLeg', 'rightUpLeg', 'spine', 'leftLeg', 'rightLeg',
-                    'spine1', 'leftFoot', 'rightFoot', 'spine2', 'leftToeBase', 'rightToeBase',
-                    'neck', 'leftShoulder', 'rightShoulder', 'head', 'leftArm', 'rightArm',
-                    'leftForeArm', 'rightForeArm', 'leftHand', 'rightHand', 'leftHandIndex1', 'rightHandIndex1']
-
-    part2num = {part: (ipart + 1) for ipart, part in enumerate(sorted_parts)}
-
-    materials = {}
-    vgroups = {}
-    with open(segm_per_v_overlap_file, 'rb') as f:
-        vsegm = load(f)
-    bpy.ops.object.material_slot_remove()
-    parts = sorted(vsegm.keys())
-    for part in parts:
-        vs = vsegm[part]
-        vgroups[part] = ob.vertex_groups.new(part)
-        vgroups[part].add(vs, 1.0, 'ADD')
-        bpy.ops.object.vertex_group_set_active(group=part)
-        materials[part] = material.copy()
-        materials[part].pass_index = part2num[part]
-        bpy.ops.object.material_slot_add()
-        ob.material_slots[-1].material = materials[part]
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.vertex_group_select()
-        bpy.ops.object.material_slot_assign()
-        bpy.ops.object.mode_set(mode='OBJECT')
-    return(materials)
-
 
 def main():
     """Main Function"""
@@ -206,6 +133,10 @@ def main():
     smpl_data = np.load(osp.join(smpl_data_dir, 'smpl_data.npz'))
     print("# of smpl_data.files = {}".format(len(smpl_data.files)))
 
+    print("Loading segm_per_v_overlap.pkl")
+    with open(osp.join(smpl_data_dir, 'segm_per_v_overlap.pkl'), 'rb') as f:
+        vsegm = load(f)
+
     # Create a new osl file for each render (Need to verify if it works with multiple processes)
     sh_script = osp.realpath(image_name + '.osl')
     copyfile(osp.join(smpl_data_dir, 'spher_harm.osl'), sh_script)
@@ -231,7 +162,7 @@ def main():
 
     mesh_ob, arm_ob = add_person_to_scene(smpl_data_dir, 'male', obj_id)
     # assign the existing spherical harmonics material
-    mesh_ob.active_material = bpy.data.materials['Material']
+    # mesh_ob.active_material = bpy.data.materials['Material']
 
     deselect_all_objects()
     mesh_ob.select = True
@@ -240,7 +171,7 @@ def main():
 
     # create material segmentation
     if segmented_materials:
-        materials = create_body_segmentation(mesh_ob, osp.join(smpl_data_dir, 'segm_per_v_overlap.pkl'), material)
+        materials = create_body_segmentation(vsegm, mesh_ob, material)
         prob_dressed = {'leftLeg': .5, 'leftArm': .9, 'leftHandIndex1': .01,
                         'rightShoulder': .8, 'rightHand': .01, 'neck': .01,
                         'rightToeBase': .9, 'leftShoulder': .8, 'leftToeBase': .9,

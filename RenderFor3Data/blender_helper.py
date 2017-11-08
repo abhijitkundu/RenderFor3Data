@@ -12,6 +12,11 @@ def print_blender_object_atrributes(obj):
             print("obj.%s = %s" % (attr, getattr(obj, attr)))
     print("-------------------------------------------------")
 
+def deselect_all_objects():
+    """De-select all objects"""
+    for ob in bpy.data.objects.values():
+        ob.select = False
+    bpy.context.scene.objects.active = None
 
 def get_camera_intrinsic_from_blender(cam):
     """Get the camera intrinsic matrix K for blender camera"""
