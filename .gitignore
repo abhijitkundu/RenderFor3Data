@@ -34,7 +34,6 @@ env/
 
 #Custom files
 ___*
-*.json
 
 #temp files
 *.*~
