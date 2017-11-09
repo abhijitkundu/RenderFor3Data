@@ -4,7 +4,7 @@ from shutil import copyfile
 import numpy as np
 from random import choice, randint
 import bpy
-from mathutils import Matrix, Vector, Quaternion, Euler
+from mathutils import Matrix, Vector
 from RenderFor3Data.smpl_helper import SMPLBody, create_shader_material, load_body_data
 from RenderFor3Data.blender_helper import (deselect_all_objects,
                                            get_camera_intrinsic_from_blender,
@@ -131,8 +131,6 @@ def main():
     num_of_mocap_seqs = sum(1 for seq in smpl_data.files if seq.startswith('pose_'))
     print("num_of_mocap_seqs=", num_of_mocap_seqs)
 
-    smpl_bodies = []
-
     num_of_persons = 10
     for obj_id in range(num_of_persons):
         gender = choice(genders)
@@ -202,27 +200,27 @@ def main():
         t = Rdelta * Vector((0., 0., np.random.uniform(3.0, 30.0)))
 
         smpl_body.arm_ob.matrix_world = Matrix.Translation(t) * R.to_4x4() * smpl_body.arm_ob.matrix_world
-        smpl_bodies.append(smpl_body)
 
-    # spherical harmonics material needs a script to be loaded and compiled
-    spherical_harmonics = []
-    for _, material in smpl_bodies[0].materials.items():
-        spherical_harmonics.append(material.node_tree.nodes['Script'])
-        spherical_harmonics[-1].filepath = sh_script
-        spherical_harmonics[-1].update()
 
-    for _, material in smpl_bodies[0].materials.items():
-        material.node_tree.nodes['Vector Math'].inputs[1].default_value[:2] = (0, 0)
+        # spherical harmonics material needs a script to be loaded and compiled
+        spherical_harmonics = []
+        for _, material in smpl_body.materials.items():
+            spherical_harmonics.append(material.node_tree.nodes['Script'])
+            spherical_harmonics[-1].filepath = sh_script
+            spherical_harmonics[-1].update()
 
-    # set up random light
-    shading_params = .7 * (2 * np.random.rand(9) - 1)
-    # Ambient light (first coeff) needs a minimum  is ambient. Rest is uniformly distributed, higher means brighter.
-    shading_params[0] = .5 + .9 * np.random.rand()
-    shading_params[1] = -.7 * np.random.rand()
+        for _, material in smpl_body.materials.items():
+            material.node_tree.nodes['Vector Math'].inputs[1].default_value[:2] = (0, 0)
 
-    for ish, coeff in enumerate(shading_params):
-        for sc in spherical_harmonics:
-            sc.inputs[ish + 1].default_value = coeff
+        # set up random light
+        shading_params = .7 * (2 * np.random.rand(9) - 1)
+        # Ambient light (first coeff) needs a minimum  is ambient. Rest is uniformly distributed, higher means brighter.
+        shading_params[0] = .5 + .9 * np.random.rand()
+        shading_params[1] = -.7 * np.random.rand()
+
+        for ish, coeff in enumerate(shading_params):
+            for sc in spherical_harmonics:
+                sc.inputs[ish + 1].default_value = coeff
 
     # Save scene as blend file
     bpy.ops.wm.save_as_mainfile(filepath=image_name + '.blend')
