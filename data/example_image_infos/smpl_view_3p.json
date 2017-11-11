@@ -16,7 +16,7 @@
     {
       "category":"person_male",
       "center_dist":5.0,
-      "center_proj":[300.0,400.0],
+      "center_proj":[260.0,400.0],
       "id":2,
       "shape_file":"textures/male/nongrey_male_0347.jpg",
       "viewpoint":[0.0,0.0,0.0],
@@ -26,7 +26,7 @@
     {
       "category":"person_male",
       "center_dist":5.0,
-      "center_proj":[1200.0,400.0],
+      "center_proj":[1230.0,400.0],
       "id":2,
       "shape_file":"textures/male/nongrey_male_0347.jpg",
       "viewpoint":[0.0,0.0,0.0],
