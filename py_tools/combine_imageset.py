@@ -5,10 +5,11 @@ This script selects images from multiple image dirs into one
 """
 import argparse
 import os.path as osp
-from os import makedirs
 from glob import glob
-import numpy as np
+from os import makedirs
 from shutil import copy2
+
+import numpy as np
 from tqdm import tqdm
 
 
