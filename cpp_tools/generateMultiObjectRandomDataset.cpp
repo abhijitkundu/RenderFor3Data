@@ -22,6 +22,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include <Eigen/EulerAngles>
+#include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 #include <boost/progress.hpp>
@@ -67,9 +68,10 @@ class MultiObjectDatasetGenerator {
  public:
   using MeshType = CuteGL::Mesh<float, float, unsigned char, int>;
 
-  MultiObjectDatasetGenerator(const std::string& dataset_name, const std::size_t num_of_objects_per_image)
+  MultiObjectDatasetGenerator(const std::string& category, const std::size_t num_of_objects_per_image)
       : renderer_(new CuteGL::MultiObjectRenderer()),
         viewer_(renderer_.get()),
+        category_(category),
         num_of_objects_per_image_(num_of_objects_per_image),
         vp_index_(0),
         model_index_(0),
@@ -100,12 +102,12 @@ class MultiObjectDatasetGenerator {
     renderer_->phongShader().setLightPosition(0.0f, -50.0f, 10.0f);
     renderer_->phongShader().program.release();
 
-    dataset_.name = dataset_name;
+    dataset_.name = (boost::format("CityShapes_%s") % category_).str();
     dataset_.rootdir = fs::path(RENDERFOR3DATA_ROOT_DIR) / fs::path("data");
     assert(fs::exists(dataset_.rootdir));
     
-    fs::path image_fp = dataset_.rootdir / dataset_name / "color_gl"/ "%08i_color.png";
-    fs::path segm_fp = dataset_.rootdir / dataset_name / "segm_gl"/ "%08i_segm.png";
+    fs::path image_fp = dataset_.rootdir / dataset_.name / "color_gl"/ "%08i_color.png";
+    fs::path segm_fp = dataset_.rootdir / dataset_.name / "segm_gl"/ "%08i_segm.png";
 
     if (!fs::exists(image_fp.parent_path()))
       fs::create_directories(image_fp.parent_path());
@@ -193,7 +195,7 @@ class MultiObjectDatasetGenerator {
 
       ImageObjectInfo obj_info;
       obj_info.id = i + 1;
-      obj_info.category = "car";
+      obj_info.category = category_;
       obj_info.shape_file = relative_path(model_file, dataset_.rootdir).string();
 
       CuteGL::MeshData legacy_mesh = CuteGL::loadMeshFromPLY(model_file);
@@ -403,13 +405,17 @@ class MultiObjectDatasetGenerator {
     dataset_.image_infos.push_back(img_info);
   }
 
-  void save_dataset(const std::string& filename) {
-    saveImageDatasetToJson(dataset_, filename);
+  void save_dataset() {
+    std::string out_name =  dataset_.name + ".json";
+    std::cout << "Saving dataset at " << out_name << std::flush;
+    saveImageDatasetToJson(dataset_, out_name);
+    std::cout << " Done." << std::endl;
   }
 
  private:
   std::unique_ptr<CuteGL::MultiObjectRenderer> renderer_;
   CuteGL::OffScreenRenderViewer viewer_;
+  std::string category_;
 
   std::size_t num_of_objects_per_image_;
 
@@ -434,20 +440,66 @@ class MultiObjectDatasetGenerator {
 
 int main(int argc, char **argv) {
 
+  namespace po = boost::program_options;
+  namespace fs = boost::filesystem;
+
+  po::options_description generic_options("Generic Options");
+  generic_options.add_options()("help,h", "Help screen");
+
+  po::options_description config_options("Config");
+  config_options.add_options()("num_of_images,n", po::value<std::size_t>()->default_value(20000), "# images to generate")
+                              ("category,c", po::value<std::string>()->default_value("car"), "object_category")
+                              ("objects_per_image,o", po::value<std::size_t>()->default_value(32), "# objects per image")
+                              ("viewpoint_file,v", po::value<fs::path>()->required(), "Path to viewpoint distribution file")
+                              ("shape_files_list,s", po::value<fs::path>()->required(), "Path to shape files list file")
+                              ;
+
+  po::options_description cmdline_options;
+  cmdline_options.add(generic_options).add(config_options);
+
+  po::variables_map vm;
+
+  try {
+    po::store(po::command_line_parser(argc, argv).options(cmdline_options).run(), vm);
+    po::notify(vm);
+  } catch (const po::error &ex) {
+    std::cerr << ex.what() << '\n';
+    std::cout << cmdline_options << '\n';
+    return EXIT_FAILURE;
+  }
+
+  if (vm.count("help")) {
+    std::cout << cmdline_options << '\n';
+    return EXIT_SUCCESS;
+  }
+
+  const fs::path viewpoint_file = vm["viewpoint_file"].as<fs::path>();
+  const fs::path shape_files_list = vm["shape_files_list"].as<fs::path>();
+
+  if (!fs::is_regular_file(viewpoint_file)) {
+    std::cout << viewpoint_file << " does not exist (or not a regular file)\n";
+    return EXIT_FAILURE;
+  }
+
+  if (!fs::is_regular_file(shape_files_list)) {
+    std::cout << shape_files_list << " does not exist (or not a regular file)\n";
+    return EXIT_FAILURE;
+  }
+
   QGuiApplication app(argc, argv);
 
-  const std::string dataset_name = "FlyingCars20k_seed42";
-  const std::size_t num_of_objects_per_image = 32;
-  const int num_of_images_to_generate = 20000;
+  const std::string category = vm["category"].as<std::string>();
+  const std::size_t num_of_objects_per_image = vm["objects_per_image"].as<std::size_t>();
+  const int num_of_images_to_generate = vm["num_of_images"].as<std::size_t>();
 
-  MultiObjectDatasetGenerator dataset_generator(dataset_name, num_of_objects_per_image);
+  MultiObjectDatasetGenerator dataset_generator(category, num_of_objects_per_image);
 
   std::cout << "Reading viewpoints ..." << std::flush;
-  std::size_t num_of_vps = dataset_generator.readViewpoints(RENDERFOR3DATA_ROOT_DIR "/data/view_distribution/voc2012_kitti/car.txt");
+  std::size_t num_of_vps = dataset_generator.readViewpoints(viewpoint_file.string());
   std::cout << "We now have " << num_of_vps << " viewpoints." << std::endl;
 
   std::cout << "Reading model filelist ..." << std::flush;
-  std::size_t num_of_models = dataset_generator.readModelFilesList(RENDERFOR3DATA_ROOT_DIR "/data/cars_shape_files_ply.txt",
+  std::size_t num_of_models = dataset_generator.readModelFilesList(shape_files_list.string(),
                                                                    RENDERFOR3DATA_ROOT_DIR "/data/CityShapes/");
   std::cout << "We now have " << num_of_models << " models." << std::endl;
 
@@ -461,9 +513,8 @@ int main(int argc, char **argv) {
     ++show_progress;
   }
 
-  std::cout << "Saving dataset ..." << std::flush;
-  dataset_generator.save_dataset(dataset_name + ".json");
-  std::cout << "Done." << std::endl;
+
+  dataset_generator.save_dataset();
 
   return EXIT_SUCCESS;
 }

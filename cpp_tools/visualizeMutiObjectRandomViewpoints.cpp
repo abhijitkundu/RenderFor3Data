@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
   generic_options.add_options()("help,h", "Help screen");
 
   po::options_description config_options("Config");
-  config_options.add_options()("objects_per_image,n", po::value<std::size_t>()->default_value(32), "# objects per image")
+  config_options.add_options()("objects_per_image,o", po::value<std::size_t>()->default_value(32), "# objects per image")
                               ("viewpoint_file,v", po::value<fs::path>()->required(), "Path to viewpoint ditribution file")
                               ("shape_files_list,s", po::value<fs::path>()->required(), "Path to shape files list file")
                               ;
