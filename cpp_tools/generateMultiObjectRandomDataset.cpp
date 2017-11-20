@@ -13,7 +13,7 @@
 #include <CuteGL/IO/ImportPLY.h>
 #include <CuteGL/Core/PoseUtils.h>
 #include <CuteGL/Core/MeshUtils.h>
-#include <CuteGL/Core/ColorUtils.h>
+#include <CuteGL/Utils/ColorUtils.h>
 #include <CuteGL/Geometry/ComputeAlignedBox.h>
 #include <CuteGL/Geometry/OrientedBoxHelper.h>
 
