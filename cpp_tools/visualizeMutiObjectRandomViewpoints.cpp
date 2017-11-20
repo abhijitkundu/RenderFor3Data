@@ -18,6 +18,7 @@
 
 #include <Eigen/EulerAngles>
 #include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
 #include <QApplication>
 #include <random>
 #include <fstream>
@@ -234,6 +235,50 @@ class ViewpointBrowser : public WindowRenderViewer {
 
 int main(int argc, char **argv) {
 
+  namespace po = boost::program_options;
+  namespace fs = boost::filesystem;
+
+  po::options_description generic_options("Generic Options");
+  generic_options.add_options()("help,h", "Help screen");
+
+  po::options_description config_options("Config");
+  config_options.add_options()("objects_per_image,n", po::value<std::size_t>()->default_value(32), "# objects per image")
+                              ("viewpoint_file,v", po::value<fs::path>()->required(), "Path to viewpoint ditribution file")
+                              ("shape_files_list,s", po::value<fs::path>()->required(), "Path to shape files list file")
+                              ;
+
+  po::options_description cmdline_options;
+  cmdline_options.add(generic_options).add(config_options);
+
+  po::variables_map vm;
+
+  try {
+    po::store(po::command_line_parser(argc, argv).options(cmdline_options).run(), vm);
+    po::notify(vm);
+  } catch (const po::error &ex) {
+    std::cerr << ex.what() << '\n';
+    std::cout << cmdline_options << '\n';
+    return EXIT_FAILURE;
+  }
+
+  if (vm.count("help")) {
+    std::cout << cmdline_options << '\n';
+    return EXIT_SUCCESS;
+  }
+
+  const fs::path viewpoint_file = vm["viewpoint_file"].as<fs::path>();
+  const fs::path shape_files_list = vm["shape_files_list"].as<fs::path>();
+
+  if (!fs::is_regular_file(viewpoint_file)) {
+    std::cout << viewpoint_file << " does not exist (or not a regular file)\n";
+    return EXIT_FAILURE;
+  }
+
+  if (!fs::is_regular_file(shape_files_list)) {
+    std::cout << shape_files_list << " does not exist (or not a regular file)\n";
+    return EXIT_FAILURE;
+  }
+
   QApplication app(argc, argv);
 
   using namespace CuteGL;
@@ -242,7 +287,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<MultiObjectRenderer> renderer(new MultiObjectRenderer());
   renderer->setDisplayAxis(false);
 
-  ViewpointBrowser viewer(renderer.get(), 32);
+  ViewpointBrowser viewer(renderer.get(), vm["objects_per_image"].as<std::size_t>());
   viewer.setBackgroundColor(0, 0, 0);
 
   //  const int W = 960;
@@ -267,11 +312,11 @@ int main(int argc, char **argv) {
   viewer.setCameraIntrinsics(focal_length, focal_length, 0.0f, W / 2.0f, H / 2.0f, W, H, 0.1f, 100.0f);
 
   std::cout << "Reading viewpoints ..." << std::flush;
-  std::size_t num_of_vps = viewer.readViewpoints(RENDERFOR3DATA_ROOT_DIR "/data/view_distribution/voc2012_kitti/car.txt");
+  std::size_t num_of_vps = viewer.readViewpoints(viewpoint_file.string());
   std::cout << "We now have " << num_of_vps << " viewpoints." << std::endl;
 
   std::cout << "Reading model filelist ..." << std::flush;
-  std::size_t num_of_models = viewer.readModelFilesList(RENDERFOR3DATA_ROOT_DIR "/data/cars_shape_files_ply.txt",
+  std::size_t num_of_models = viewer.readModelFilesList(shape_files_list.string(),
                                                         RENDERFOR3DATA_ROOT_DIR "/data/CityShapes/");
   std::cout << "We now have " << num_of_models << " models." << std::endl;
 
