@@ -30,6 +30,7 @@ def main():
     assert args.num_of_threads > 0, "Number of threads need to be +ve"
     num_of_gpus = len(args.gpus)
     assert num_of_gpus > 0, "You need to provide atleast one gpu"
+    assert args.image_info_files, "Need to provide atleast one image_info_file"
 
     print("Rendering will use {} gpus = {}".format(num_of_gpus, args.gpus))
 
