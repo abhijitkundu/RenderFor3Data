@@ -10,7 +10,7 @@ def main():
     """Main Function"""
     # Set root dir and render script path
     root_dir = osp.dirname(osp.abspath(__file__))
-    default_render_script = osp.join(root_dir, 'render_single_image_info.py')
+    default_render_script = osp.join(root_dir, 'render_mutiple_image_infos.py')
 
     parser = argparse.ArgumentParser()
     parser.add_argument("image_info_files", nargs='+', type=str, help="Path to image_info files")
