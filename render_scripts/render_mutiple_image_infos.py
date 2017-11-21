@@ -45,7 +45,7 @@ def set_random_lights(scene, render_engine):
         bg.inputs[0].default_value[:3] = (np.random.uniform(0.85, 1.0), np.random.uniform(0.85, 1.0), np.random.uniform(0.85, 1.0))
         bg.inputs[1].default_value = np.random.uniform(0.06, 1.0)
 
-        for _ in range(np.random.randint(2, 3)):
+        for _ in range(np.random.randint(2, 5)):
             bpy.ops.object.lamp_add(type='SUN', view_align=False, rotation=np.random.uniform(-np.pi, np.pi, size=3))
             # bpy.data.lamps['SUN'].data.energy = 1.5
     elif render_engine == 'BLENDER_RENDER':
@@ -139,7 +139,7 @@ def main():
     assert osp.isdir(args.dataset_rootdir), "Dataset rootdir '{}' is not a directory".format(args.dataset_rootdir)
 
     # redirect certain outputs to log file
-    logfilename = 'render_mutiple_image_infos_{:%Y-%m-%d_%H:%M:%S}.log'.format(datetime.now())
+    logfilename = 'render_mutiple_image_infos_gpu{}_uid{}_{:%Y-%m-%d_%H:%M:%S}.log'.format(args.gpu, np.random.randint(100, 1000), datetime.now())
     print("Saving log at {}".format(logfilename))
     logfile = open(logfilename, 'w')
 
@@ -181,7 +181,7 @@ def main():
     bpy.ops.object.delete(use_global=False)
 
     if args.render_engine == 'CYCLES':
-        print("Using CYCLES render engine")
+        print("Using CYCLES render engine with gpu {}".format(args.gpu))
         setup_cycles_engine(scene, args.gpu)
     elif args.render_engine == 'BLENDER_RENDER':
         print("Using BLENDER render engine")
