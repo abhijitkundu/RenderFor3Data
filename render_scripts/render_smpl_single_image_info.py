@@ -72,16 +72,15 @@ def main():
     assert osp.exists(smpl_data_dir), "smpl_data directory {} does not exists".format(smpl_data_dir)
 
     parser = argparse.ArgumentParser(description='Render SMPL from a single ImageInfo')
-    parser.add_argument('image_info_file', type=str, nargs=1, help='path to image info file')
+    parser.add_argument('image_info_file', type=str, help='path to image info file')
     parser.add_argument('--save_blend', dest='save_blend', action='store_true')
     parser.set_defaults(save_blend=False)
 
     args = parser.parse_args(argv)
-    image_info_file = args.image_info_file[0]
 
-    assert osp.exists(image_info_file), "File '{}' does not exist".format(image_info_file)
+    assert osp.exists(args.image_info_file), "File '{}' does not exist".format(args.image_info_file)
 
-    with open(image_info_file, 'r') as f:
+    with open(args.image_info_file, 'r') as f:
         image_info = json.load(f)
 
     # Setup Scene
@@ -92,15 +91,18 @@ def main():
     cam = bpy.data.objects['Camera']
     W = image_info['image_size'][0]
     H = image_info['image_size'][1]
-    set_blender_camera(scene, cam, image_info['image_intrinsic'], W, H)
+    K_original = Matrix(image_info['image_intrinsic'])
+    set_blender_camera(scene, cam, K_original, W, H)
     K = get_camera_intrinsic_from_blender(cam)
     Kinv = K.inverted()
 
-    # image name
-    image_name = osp.splitext(osp.basename(image_info['image_file']))[0]
-
+    print("K_original=\n", K_original)
     print("K=\n", K)
     print("Kinv=\n", Kinv)
+    assert K == K_original
+
+    # image name
+    image_name = osp.splitext(osp.basename(image_info['image_file']))[0]
     print("image_name=", image_name)
 
     # Create a new osl file for each render (Need to verify if it works with multiple processes)
@@ -193,8 +195,9 @@ def main():
             for sc in spherical_harmonics:
                 sc.inputs[ish + 1].default_value = coeff
 
-    # Save scene as blend file
-    bpy.ops.wm.save_as_mainfile(filepath=image_name + '.blend')
+    if args.save_blend:
+        # Save scene as blend file
+        bpy.ops.wm.save_as_mainfile(filepath=image_name + '.blend')
 
     # Render
     scene.render.filepath = image_name + '.png'
