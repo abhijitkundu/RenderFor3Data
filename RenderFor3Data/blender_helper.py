@@ -18,6 +18,18 @@ def deselect_all_objects():
         ob.select = False
     bpy.context.scene.objects.active = None
 
+def set_blender_object_hide(ob, hide=True):
+    """set object.hide"""
+    ob.hide = hide
+    for child in ob.children:
+        child.hide = hide
+
+def set_blender_object_hide_render(ob, hide=True):
+    """set object.hide_render"""
+    ob.hide_render = hide
+    for child in ob.children:
+        child.hide_render = hide
+
 def get_camera_intrinsic_from_blender(cam):
     """Get the camera intrinsic matrix K for blender camera"""
     camd = cam.data

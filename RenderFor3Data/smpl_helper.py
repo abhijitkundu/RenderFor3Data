@@ -10,14 +10,13 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 
 from .blender_helper import deselect_all_objects
 
-
 class SMPLBody(object):
     """
     SMPL Body
     """
     arm_ob = None
     mesh_ob = None
-    mesh_prefix = None
+    bone_prefix = None
 
     # order
     part_match = {'root': 'root', 'bone_00': 'Pelvis', 'bone_01': 'L_Hip', 'bone_02': 'R_Hip',
@@ -27,65 +26,81 @@ class SMPLBody(object):
                   'bone_15': 'Head', 'bone_16': 'L_Shoulder', 'bone_17': 'R_Shoulder', 'bone_18': 'L_Elbow',
                   'bone_19': 'R_Elbow', 'bone_20': 'L_Wrist', 'bone_21': 'R_Wrist', 'bone_22': 'L_Hand', 'bone_23': 'R_Hand'}
 
-    def __init__(self, fbx_file, material, obj_idx=0, vertex_segm=None):
+    def __init__(self, scene, ref_smpl_ob, material, obj_idx=0, vertex_segm=None):
         """
-        Initialize SMPL shape from fbx and material
+        Initialize SMPL shape from ref smpl ob and material
         """
-        assert osp.exists(fbx_file), "{} does not exist".format(fbx_file)
-        bpy.ops.import_scene.fbx(filepath=fbx_file, axis_forward='Y', axis_up='Z', global_scale=100)
 
-        self.arm_ob = bpy.context.active_object
-        self.mesh_ob = self.arm_ob.children[0]
+        assert ref_smpl_ob.type == 'ARMATURE'
+        assert len(ref_smpl_ob.children) == 1
+        assert ref_smpl_ob.children[0].type == 'MESH'
 
-        self.mesh_prefix = self.mesh_ob.name + '_'
-        assert self.mesh_prefix == 'm_avg_' or self.mesh_prefix == 'f_avg_'
+        deselect_all_objects()
+        # Somehow the they need to unhidden
+        assert not ref_smpl_ob.hide
+        assert not ref_smpl_ob.children[0].hide
+
+        ref_smpl_ob.select = True
+        ref_smpl_ob.children[0].select = True
+
+        bpy.ops.object.duplicate()
+
+        for ob in bpy.context.selected_objects:
+            if ob.type == 'ARMATURE':
+                self.arm_ob = ob
+            elif ob.type == 'MESH':
+                self.mesh_ob = ob
+            else:
+                raise RuntimeError('Bad object type {}'.format(ob.type))
+
 
         self.arm_ob.name = 'Person{:02d}'.format(obj_idx)
         self.mesh_ob.name = 'Person{:02d}_mesh'.format(obj_idx)
 
-        # Disable autosmooth as it can create artifacts
-        self.mesh_ob.data.use_auto_smooth = False
+        # UnHide these template objects
+        self.arm_ob.hide = False
+        self.arm_ob.hide_render = False
 
-        # clear existing animation data
-        self.mesh_ob.data.shape_keys.animation_data_clear()
-        self.arm_ob.animation_data_clear()
+        self.mesh_ob.hide = False
+        self.mesh_ob.hide_render = False
+
+        # make sure to Disable autosmooth as it can create artifacts
+        assert not self.mesh_ob.data.use_auto_smooth
+
+        self.bone_prefix = common_prefix(self.arm_ob.pose.bones.keys())
+        assert self.bone_prefix == 'm_avg_' or self.bone_prefix == 'f_avg_'
 
         # create material segmentation
         deselect_all_objects()
         self.mesh_ob.select = True
-        bpy.context.scene.objects.active = self.mesh_ob
+        scene.objects.active = self.mesh_ob
 
         # create material segmentation
         if vertex_segm:
             # 0-24 segm labels
             self.materials = create_body_segmentation(vertex_segm, self.mesh_ob, material)
-            prob_dressed = {'leftLeg': .5, 'leftArm': .9, 'leftHandIndex1': .01,
-                            'rightShoulder': .8, 'rightHand': .01, 'neck': .01,
-                            'rightToeBase': .9, 'leftShoulder': .8, 'leftToeBase': .9,
-                            'rightForeArm': .5, 'leftHand': .01, 'spine': .9,
-                            'leftFoot': .9, 'leftUpLeg': .9, 'rightUpLeg': .9,
-                            'rightFoot': .9, 'head': .01, 'leftForeArm': .5,
-                            'rightArm': .5, 'spine1': .9, 'hips': .9,
-                            'rightHandIndex1': .01, 'spine2': .9, 'rightLeg': .5}
+            # prob_dressed = {'leftLeg': .5, 'leftArm': .9, 'leftHandIndex1': .01,
+            #                 'rightShoulder': .8, 'rightHand': .01, 'neck': .01,
+            #                 'rightToeBase': .9, 'leftShoulder': .8, 'leftToeBase': .9,
+            #                 'rightForeArm': .5, 'leftHand': .01, 'spine': .9,
+            #                 'leftFoot': .9, 'leftUpLeg': .9, 'rightUpLeg': .9,
+            #                 'rightFoot': .9, 'head': .01, 'leftForeArm': .5,
+            #                 'rightArm': .5, 'spine1': .9, 'hips': .9,
+            #                 'rightHandIndex1': .01, 'spine2': .9, 'rightLeg': .5}
         else:
             # 0 - 1 bg / fg segm labels
+            bpy.ops.object.material_slot_remove()
             self.materials = {'FullBody': material}
-            prob_dressed = {'FullBody': .6}
-
-        # unblocking both the pose and the blendshape limits
-        for k in self.mesh_ob.data.shape_keys.key_blocks.keys():
-            bpy.data.shape_keys["Key"].key_blocks[k].slider_min = -10
-            bpy.data.shape_keys["Key"].key_blocks[k].slider_max = 10
-
-        # TODO Check if we need to do this
-        # mesh_ob.active_material = material
+            bpy.ops.object.material_slot_add()
+            self.mesh_ob.material_slots[-1].material = self.materials['FullBody']
+            # prob_dressed = {'FullBody': .6}
 
     def bone(self, bone_type='Pelvis'):
         """returns a particluar bone"""
         if isinstance(bone_type, str):
-            return self.arm_ob.pose.bones[self.mesh_prefix + bone_type]
+            return self.arm_ob.pose.bones[self.bone_prefix + bone_type]
         elif isinstance(bone_type, int):
-            return self.arm_ob.pose.bones[self.mesh_prefix + self.part_match['bone_%02d' % bone_type]]
+            return self.arm_ob.pose.bones[self.bone_prefix + self.part_match['bone_%02d' % bone_type]]
         else:
             raise TypeError
 
@@ -145,7 +160,7 @@ class SMPLBody(object):
         bpy.ops.object.mode_set(mode='EDIT')
         self.arm_ob.hide = True
         for ibone in range(24):
-            bb = self.arm_ob.data.edit_bones[self.mesh_prefix + self.part_match['bone_%02d' % ibone]]
+            bb = self.arm_ob.data.edit_bones[self.bone_prefix + self.part_match['bone_%02d' % ibone]]
             bboffset = bb.tail - bb.head
             bb.head = joint_xyz[ibone]
             bb.tail = bb.head + bboffset
@@ -171,6 +186,60 @@ def rodrigues2bshapes(pose):
                               for mat_rot in mat_rots[1:]])
     return(mat_rots, bshapes)
 
+def load_smpl_fbx_files(smpl_data_dir):
+    """load smpl fbx files"""
+    smpl_obs = {}
+    for gender in ['female', 'male']:
+        fbx_file = osp.join(smpl_data_dir, 'basicModel_{}_lbs_10_207_0_v1.0.2.fbx'.format(gender[0]))
+        assert osp.exists(fbx_file), "{} does not exist".format(fbx_file)
+        bpy.ops.import_scene.fbx(filepath=fbx_file, axis_forward='Y', axis_up='Z', global_scale=100)
+
+        arm_ob = bpy.context.active_object
+        mesh_ob = arm_ob.children[0]
+
+        mesh_prefix = mesh_ob.name + '_'
+        assert mesh_prefix == '{}_avg_'.format(gender[0])
+
+        arm_ob.name = gender
+        mesh_ob.name = '{}_mesh'.format(gender)
+        mesh_ob.data.shape_keys.name = '{}_mesh'.format(gender)
+
+        # Disable autosmooth as it can create artifacts
+        mesh_ob.data.use_auto_smooth = False
+
+        # clear existing animation data
+        mesh_ob.data.shape_keys.animation_data_clear()
+        arm_ob.animation_data_clear()
+
+        # Hide these template objects from render
+        arm_ob.hide_render = True
+        mesh_ob.hide_render = True
+
+        smpl_obs[gender] = arm_ob
+
+        # unblocking both the pose and the blendshape limits
+        for k in mesh_ob.data.shape_keys.key_blocks.keys():
+            bpy.data.shape_keys[mesh_ob.data.shape_keys.name].key_blocks[k].slider_min = -10
+            bpy.data.shape_keys[mesh_ob.data.shape_keys.name].key_blocks[k].slider_max = 10
+
+    return smpl_obs
+
+
+def common_prefix(strings):
+    """ Find the longest string that is a prefix of all the strings."""
+    if not strings:
+        return ''
+    prefix = strings[0]
+    for s in strings:
+        if len(s) < len(prefix):
+            prefix = prefix[:len(s)]
+        if not prefix:
+            return ''
+        for i in range(len(prefix)):
+            if prefix[i] != s[i]:
+                prefix = prefix[:i]
+                break
+    return prefix
 
 def create_body_segmentation(vertex_segm, ob, material):
     """

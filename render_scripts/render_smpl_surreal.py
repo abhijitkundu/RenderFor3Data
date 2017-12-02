@@ -5,8 +5,9 @@ import numpy as np
 from random import choice, randint
 import bpy
 from mathutils import Matrix, Vector
-from RenderFor3Data.smpl_helper import SMPLBody, create_shader_material, load_body_data
+from RenderFor3Data.smpl_helper import SMPLBody, create_shader_material, load_smpl_fbx_files, load_body_data
 from RenderFor3Data.blender_helper import (deselect_all_objects,
+                                           set_blender_object_hide,
                                            get_camera_intrinsic_from_blender,
                                            set_blender_camera_extrinsic,
                                            set_blender_camera_from_intrinsics,
@@ -131,6 +132,9 @@ def main():
     num_of_mocap_seqs = sum(1 for seq in smpl_data.files if seq.startswith('pose_'))
     print("num_of_mocap_seqs=", num_of_mocap_seqs)
 
+    # Load smpla fbx files
+    smpl_obs = load_smpl_fbx_files(smpl_data_dir)
+
     num_of_persons = 10
     for obj_id in range(num_of_persons):
         gender = choice(genders)
@@ -157,12 +161,7 @@ def main():
         assert osp.exists(cloth_img_path), "{} does not exist".format(cloth_img_path)
         create_shader_material(material.node_tree, sh_script, cloth_img_path)
 
-        if gender == 'male':
-            fbx_file = osp.join(smpl_data_dir, 'basicModel_m_lbs_10_207_0_v1.0.2.fbx')
-        else:
-            fbx_file = osp.join(smpl_data_dir, 'basicModel_f_lbs_10_207_0_v1.0.2.fbx')
-
-        smpl_body = SMPLBody(fbx_file, material, obj_id, vertex_segm=vsegm)
+        smpl_body = SMPLBody(scene, smpl_obs[gender], material, obj_id, vertex_segm=vsegm)
 
         # TODO Check if this is required
         # mesh_ob.active_material = material
@@ -221,6 +220,10 @@ def main():
         for ish, coeff in enumerate(shading_params):
             for sc in spherical_harmonics:
                 sc.inputs[ish + 1].default_value = coeff
+
+    # Hide the template smpl objects
+    for smpl_ob in smpl_obs.values():
+        set_blender_object_hide(smpl_ob)
 
     # Save scene as blend file
     bpy.ops.wm.save_as_mainfile(filepath=image_name + '.blend')
