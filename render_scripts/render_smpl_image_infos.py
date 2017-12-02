@@ -41,6 +41,9 @@ def setup_scene(scene):
     scene.cycles.shading_system = True
     scene.use_nodes = True
 
+    # This has been reduced from 128 since it gives almost identical images with our assets
+    scene.cycles.samples = 32
+
     scene.cycles.film_transparent = True
     scene.render.image_settings.color_mode = 'RGBA'
 
@@ -79,9 +82,16 @@ def main():
     parser = argparse.ArgumentParser(description='Render SMPL from a single ImageInfo')
     parser.add_argument('image_info_files', type=str, nargs='+', help='path to image info file')
     parser.add_argument('--save_blend', dest='save_blend', action='store_true')
+    parser.add_argument('--seed', type=int, help='optional seed value')
     parser.set_defaults(save_blend=False)
 
     args = parser.parse_args(argv)
+
+    if args.seed is not None:
+        print("Using prespecified seed = {}".format(args.seed))
+        np.random.seed(args.seed)
+    else:
+        print("Not using any seed")
 
     # Setup Scene
     scene = bpy.data.scenes['Scene']
