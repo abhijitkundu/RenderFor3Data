@@ -17,6 +17,7 @@ class SMPLBody(object):
     arm_ob = None
     mesh_ob = None
     bone_prefix = None
+    materials = None
 
     # order
     part_match = {'root': 'root', 'bone_00': 'Pelvis', 'bone_01': 'L_Hip', 'bone_02': 'R_Hip',
@@ -165,6 +166,13 @@ class SMPLBody(object):
             bb.head = joint_xyz[ibone]
             bb.tail = bb.head + bboffset
         bpy.ops.object.mode_set(mode='OBJECT')
+
+    def delete_from_scene(self):
+        """Deletes obj asset from the scene"""
+        deselect_all_objects()
+        self.arm_ob.select = True
+        self.mesh_ob.select = True
+        bpy.ops.object.delete(use_global=False)
 
 
 def Rodrigues(rotvec):

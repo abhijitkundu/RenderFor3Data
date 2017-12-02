@@ -93,7 +93,7 @@ def setup_cycles_engine(scene, gpu=None):
     """Set Cycles engine"""
     # Using Cycles Render Engine
     scene.render.engine = 'CYCLES'
-    bpy.data.materials['Material'].use_nodes = True
+    # bpy.data.materials['Material'].use_nodes = True
     scene.cycles.shading_system = True
     scene.use_nodes = True
     scene.render.image_settings.color_mode = 'RGBA'

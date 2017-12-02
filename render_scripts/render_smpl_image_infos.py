@@ -37,7 +37,7 @@ def setup_scene(scene):
     bpy.ops.object.delete(use_global=False)
 
     scene.render.engine = 'CYCLES'
-    bpy.data.materials['Material'].use_nodes = True
+    # bpy.data.materials['Material'].use_nodes = True
     scene.cycles.shading_system = True
     scene.use_nodes = True
 
@@ -88,8 +88,17 @@ def main():
     setup_scene(scene)
     cam = bpy.data.objects['Camera']
 
+    print("---------------------------")
+    for mtl in bpy.data.materials:
+        print(mtl.name, mtl.type)
+    print("---------------------------")
+
     # Load smpla fbx files
+    print("Loading smpl fbx files")
     smpl_obs = load_smpl_fbx_files(smpl_data_dir)
+
+    print("Loading smpl data")
+    smpl_data = np.load(osp.join(smpl_data_dir, 'smpl_data.npz'))
 
     for image_info_file in args.image_info_files:
         assert osp.exists(image_info_file), "File '{}' does not exist".format(image_info_file)
@@ -117,11 +126,9 @@ def main():
         sh_script = osp.realpath(image_name + '.osl')
         copyfile(osp.join(smpl_data_dir, 'spher_harm.osl'), sh_script)
 
-        print("Loading smpl data")
-        smpl_data = np.load(osp.join(smpl_data_dir, 'smpl_data.npz'))
-
         print("Adding objects")
         # Loop over all object_infos
+        smpl_bodies = []
         for obj_info in image_info['object_infos']:
             if not obj_info['category'].startswith('person_'):
                 continue
@@ -194,6 +201,8 @@ def main():
                 for sc in spherical_harmonics:
                     sc.inputs[ish + 1].default_value = coeff
 
+            smpl_bodies.append(smpl_body)
+
         if args.save_blend:
             for smpl_ob in smpl_obs.values():
                 set_blender_object_hide(smpl_ob, True)
@@ -205,6 +214,13 @@ def main():
         # Render
         scene.render.filepath = image_name + '.png'
         bpy.ops.render.render(write_still=True)
+
+        # Now we should delete the smpl bodies
+        for smpl_body in smpl_bodies:
+            smpl_body.delete_from_scene()
+
+        for material in bpy.data.materials:
+            bpy.data.materials.remove(material)
 
 
 if __name__ == '__main__':
