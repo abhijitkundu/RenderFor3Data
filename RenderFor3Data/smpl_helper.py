@@ -175,8 +175,8 @@ class SMPLBody(object):
         bpy.ops.object.delete(use_global=False)
 
 
-def Rodrigues(rotvec):
-    """computes rotation matrix through Rodrigues formula as in cv2.Rodrigues"""
+def rodrigues(rotvec):
+    """computes rotation matrix through rodrigues formula as in cv2.rodrigues"""
     theta = np.linalg.norm(rotvec)
     r = (rotvec / theta).reshape(3, 1) if theta > 0. else rotvec
     cost = np.cos(theta)
@@ -189,7 +189,7 @@ def Rodrigues(rotvec):
 def rodrigues2bshapes(pose):
     """transformation between pose and blendshapes"""
     rod_rots = np.asarray(pose).reshape(24, 3)
-    mat_rots = [Rodrigues(rod_rot) for rod_rot in rod_rots]
+    mat_rots = [rodrigues(rod_rot) for rod_rot in rod_rots]
     bshapes = np.concatenate([(mat_rot - np.eye(3)).ravel()
                               for mat_rot in mat_rots[1:]])
     return(mat_rots, bshapes)
